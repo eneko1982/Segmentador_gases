@@ -10,6 +10,8 @@ Per sequence it reports
     alarm        was the leak detected, and how long after the valve opened
     false_alarm  did the detector fire while the valve was still closed
     fp_free_pct  % of truly gas-free pixels flagged (last second)
+    iou_det      detector mask vs the true region above the detector's own
+                 threshold (2.5 sigma of the filtered noise)
     iou_1x/2x/3x overlap between "estimate above N x NETD" and the true
                  region above N x NETD (last second)
 """
@@ -66,6 +68,12 @@ def run_one(job):
                    false_alarm=int(al[res["n_free"]:on].any()),
                    fp_free_pct=100.0 * float((pred[last] & free).sum()) / max(int(free.sum()), 1),
                    detected_px=float(pred[last].sum()) / int(fps))
+        # detector mask vs truth at the detector's own threshold (z_low sigmas)
+        thr_k = 2.5 * res["sigma"] * unit_k
+        truth_det = (contrast[last] > thr_k) & valid
+        sc = scores(pred[last], truth_det)
+        row.update(det_thr_mk=thr_k * 1e3, true_px_det=float(truth_det.sum()) / int(fps),
+                   iou_det=sc["iou"], recall_det=sc["recall"], precision_det=sc["precision"])
         for mult in (1, 2, 3):
             truth = (contrast[last] > mult * netd) & valid
             sc = scores((est > mult * netd) & valid, truth)

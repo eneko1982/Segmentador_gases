@@ -177,7 +177,10 @@ def scores(pred: np.ndarray, truth: np.ndarray) -> dict:
 
 def save_preview(path: Path, frames_u8: np.ndarray, pred: np.ndarray, truth: np.ndarray | None,
                  fps: float, step: int = 2):
-    """GIF: detected region outlined in orange, reference mask (if any) in blue."""
+    """GIF: detected region outlined in orange, reference mask (if any) in blue.
+
+    The reference should use the same threshold as the detector (see main()),
+    otherwise the two outlines answer different questions."""
     from PIL import Image
 
     def edge(m):
@@ -230,6 +233,12 @@ def main():
     last = slice(len(frames) - int(fps), len(frames))            # last second
     gas_free_px = (contrast[last] < 0.002) & valid
     print(f"  gas-free pixels flagged     : {100 * (pred[last] & gas_free_px).sum() / max(gas_free_px.sum(), 1):.2f} %")
+    # threshold the detector itself applies, in kelvin (z_low noise sigmas)
+    det_thr_k = args.z_low * res["sigma"] * unit_k
+    truth_det = (contrast > det_thr_k) & valid
+    sc = scores(pred[last], truth_det[last])
+    print(f"  mask vs truth at its own {det_thr_k * 1e3:.0f} mK : IoU {sc['iou']:.2f}  recall {sc['recall']:.2f}  "
+          f"precision {sc['precision']:.2f}")
     estimate = np.abs(res["estimate"][last]) * unit_k
     for mult in (1, 2, 3):
         sc = scores((estimate > mult * netd) & valid, (contrast[last] > mult * netd) & valid)
@@ -237,7 +246,7 @@ def main():
               f"precision {sc['precision']:.2f}")
     if args.preview:
         out = path.with_name(path.stem + f"_detect_{args.input}.gif")
-        save_preview(out, d["u8"], pred, d["mask"], fps)
+        save_preview(out, d["u8"], pred, truth_det, fps)
         print(f"  preview -> {out}")
 
 
