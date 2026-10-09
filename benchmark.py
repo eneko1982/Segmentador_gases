@@ -26,17 +26,13 @@ from pathlib import Path
 import numpy as np
 
 from gas_detect import alarm, detect, scores
-from ogi_sim import Config, simulate
+from ogi_sim import Config, load_preset, simulate
 
 LEAK_ON_S = 2.0
 DURATION_S = 5.0
 FLOWS_G_S = [0.001, 0.003, 0.01, 0.03, 0.1, 0.3]
-SCENES = {
-    # name: (label, Config overrides)
-    "hot_plate_dT48": dict(scene="hot_plate", t_bg_c=70.0),
-    "hot_plate_dT5": dict(scene="hot_plate", t_bg_c=27.0, level_c=25.0, span_c=8.0),
-    "cold_sky": dict(scene="cold_sky", t_bg_c=-25.0),
-}
+# name -> Config overrides, read from configs/<name>.json
+SCENES = {name: load_preset(name) for name in ("hot_plate_dT48", "hot_plate_dT5", "cold_sky")}
 
 
 def run_one(job):

@@ -4,21 +4,39 @@ Simulador de secuencias LWIR de fugas de gas (cámara fija, tubo de venteo) y de
 
 | Archivo | Función |
 |---|---|
-| `ogi_sim.py` | Simulador: pluma de puffs gaussianos, radiometría 8–14 µm, cámara (NETD, FPN, deriva, cuantización 8 bit). Salidas: `u8`, `temp_ck`, `cl`, `contrast`, `mask`, `meta`. |
+| `ogi_sim.py` | Simulador totalmente parametrizable: pluma de puffs gaussianos, radiometría 8–14 µm, cámara (NETD, FPN, deriva, cuantización 8 bit). Salidas: `u8`, `temp_ck`, `cl`, `contrast`, `mask`, `meta`. |
 | `gas_detect.py` | Detector: fondo → diferencia → suavizado espacial → deriva (moda) → media temporal → z-score → histéresis → limpieza. |
 | `make_figure.py` | Figura detector vs verdad con umbral coherente (`docs/figures/detector_same_threshold.png`). |
 | `benchmark.py` | Barrido de caudal (0,001–0,3 g/s) en 3 escenas, evaluando vídeo 8 bit y matriz radiométrica. |
 | `results/results.csv` | Resultados del benchmark (2 semillas). |
+| `configs/` | Presets en JSON (escenas del benchmark, vídeo largo turbulento, fuga intermitente). |
+| `docs/` | `parametros.md` (referencia de parámetros), `hoja_de_ruta.md` (estado de los pasos), `registro.md` (cambios y decisiones) y `figures/`. |
+| `tests/` | Tests del simulador. |
 | `docs/figures/` | Figuras de escenas y del detector. |
 
 ## Uso
 
 ```bash
 pip install -r requirements.txt
-python ogi_sim.py --out demo --scene hot_plate --flow 0.1 --preview
+python ogi_sim.py --preset hot_plate_dT5 --flow 0.03 --out demo --preview
 python gas_detect.py demo/seq_0000_hot_plate.npz --preview
 python benchmark.py --out bench
+python -m pytest tests
 ```
+
+## Parametrizar el simulador
+
+Todo lo ajustable está en `Config` y documentado en [`docs/parametros.md`](docs/parametros.md).
+
+```bash
+python ogi_sim.py --list-params                                   # todos los parámetros
+python ogi_sim.py --preset long_turbulent --out largo             # preset de configs/
+python ogi_sim.py --config mi_prueba.json --set turb_rms=0.3 --set wind_ms=-0.5
+python ogi_sim.py --preset cold_sky --dump-config                 # ver la configuración final
+python ogi_sim.py --out dataset --n 50 --seed 1 --set duration_s=6   # conjunto aleatorio
+```
+
+Precedencia: valores por defecto < `--preset` < `--config` < `--scene/--flow/--wind/--duration/--seed` < `--set`. Cada secuencia se guarda con un `.json` que recoge todos los parámetros y la semilla.
 
 ## Notas
 

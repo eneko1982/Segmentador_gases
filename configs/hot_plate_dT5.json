@@ -1,0 +1,2 @@
+{"_comment": "Placa templada a 27 °C (ΔT ≈ 5 K): caso difícil del benchmark, ventana de 8 bit fija.",
+ "scene": "hot_plate", "t_bg_c": 27.0, "level_c": 25.0, "span_c": 8.0}
