@@ -1,4 +1,6 @@
 {
+ "_title": "Exterior: sol y nube que cruza",
+ "_detector": "Exterior: sol y nubes lentas",
  "_comment": "Cambio lento del fondo (sol) y una nube que cruza: el detector no debe confundirlos con gas.",
  "scene": "hot_plate",
  "t_bg_c": 70.0,

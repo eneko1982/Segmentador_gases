@@ -26,6 +26,7 @@ from IPython.display import HTML, Image, clear_output, display
 
 import core
 import exports
+import param_guide as pg
 import ogi_sim as sim
 import viewer
 from analysis import PRED_KINDS, TRUTH_KINDS, WINDOWS
@@ -36,10 +37,10 @@ NONE_FALLBACK = dict(level_c=25.0, span_c=10.0, t_exit_c=22.0, leak_off_s=3.0,
                      gas_molar_mass_kg_mol=0.10, gas_density_kg_m3=4.0)
 FLOWS = [0.001, 0.002, 0.003, 0.005, 0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 3.0, 5.0]
 SCENE_LABEL = {"hot_plate": "Placa caliente (el gas absorbe: se ve oscuro)", "cold_sky": "Cielo frío (el gas emite: se ve claro)"}
-VIDEO_MAIN = ["scene", "t_bg_c", "netd_k", "duration_s"]
-SIM_MAIN = ["gas", "flow_g_s", "leak_on_s", "wind_ms", "gust_ms", "turb_rms"]
-VIDEO_GROUPS = ["Cámara", "Escena", "Salida y ejecución"]
-SIM_GROUPS = ["Gas y fuga", "Chorro y pluma", "Viento y turbulencia"]
+NO_PRESET = 'Por defecto'
+PART_ORDER = [('video', '1 · Vídeo y cámara'), ('escena', '2 · Escena'), ('gas', '3 · Gas y fuga'),
+              ('viento', '4 · Viento y turbulencia'), ('perturb', '5 · Perturbaciones del mundo real'), ('salida', '6 · Salida')]
+AUTO_LEVEL = 'B'
 # (parámetro, mínimo, máximo, paso, etiqueta)
 SLIDERS = {"netd_k": (0.005, 0.2, 0.005, "Ruido de la cámara NETD (K)", ".3f"), "duration_s": (1.0, 60.0, 0.5, "Duración (s)", ".1f"),
            "leak_on_s": (0.0, 60.0, 0.1, "La fuga empieza en (s)", ".1f"),
@@ -47,6 +48,14 @@ SLIDERS = {"netd_k": (0.005, 0.2, 0.005, "Ruido de la cámara NETD (K)", ".3f"),
            "gust_ms": (0.0, 2.0, 0.01, "Ráfagas (m/s rms)", ".2f"), "turb_rms": (0.0, 1.0, 0.01, "Turbulencia ambiente (m/s rms)", ".2f")}
 STYLE = {"description_width": "46%"}
 FULL = w.Layout(width="96%")
+
+
+def _fmt(v) -> str:
+    if v is None:
+        return "sin definir"
+    if isinstance(v, bool):
+        return "sí" if v else "no"
+    return f"{v:g}" if isinstance(v, float) else str(v)
 
 
 def _step(default) -> float:
@@ -81,16 +90,23 @@ class Panel:
         self._build_video()
         self._build_results()
         self._build_export()
-        self.tabs = w.Tab(children=[self.settings_box, self.video_box, self.results_box, self.export_box])
-        for i, t in enumerate(["⚙️ Ajustes", "🎬 Vídeo", "📊 Resultados", "📦 Exportar"]):
+        self.tabs = w.Tab(children=[self.settings_box, self.video_box, self.results_box, self.export_box, self.guide_box])
+        for i, t in enumerate(["⚙️ Ajustes", "🎬 Vídeo", "📊 Resultados", "📦 Exportar", "📖 Guía"]):
             self.tabs.set_title(i, t)
         self.set_params({})
+        self._apply_profile()
+        self._apply_level()
+        self._update_changes()
+        self._watch_changes()
         self.root = w.VBox([self.top, self.status, self.tabs])
 
     # ------------------------------------------------------------------ barra superior
     def _build_top(self):
-        presets = ["Por defecto"] + sorted(p.stem for p in sim.PRESET_DIR.glob("*.json"))
-        self.preset = w.Dropdown(options=presets, value="Por defecto", description="Preset", layout=w.Layout(width="260px"))
+        self.catalog = core.preset_catalog()
+        presets = [(NO_PRESET, NO_PRESET)] + [(v["title"], k) for k, v in self.catalog.items()]
+        self.preset = w.Dropdown(options=presets, value=NO_PRESET, description="Escenario", layout=w.Layout(width="420px"))
+        self.level = w.ToggleButtons(options=[(v, k) for k, v in pg.LEVELS.items()], value="B", description="Ajustes a ver",
+                                     tooltips=["lo que normalmente se toca", "más detalle", "todos los parámetros"])
         self.res = w.ToggleButtons(options=["Rápida (½)", "Completa"], value="Rápida (½)", description="Resolución",
                                    tooltips=["mitad de píxeles: unas 4 veces más rápida", "tamaño completo"])
         self.run_btn = w.Button(description="Simular y calcular", icon="play", button_style="primary",
@@ -98,8 +114,10 @@ class Panel:
         self.det_btn = w.Button(description="Recalcular detector", icon="refresh", layout=w.Layout(width="190px"))
         self.auto_det = w.Checkbox(value=True, description="Calcular el detector tras simular", indent=False)
         self.status = w.HTML(self._msg("Ajusta los parámetros y pulsa «Simular y calcular».", "info"))
-        self.top = w.VBox([w.HBox([self.preset, self.res]), w.HBox([self.run_btn, self.det_btn, self.auto_det])])
+        self.top = w.VBox([w.HBox([self.preset, self.res]), self.level,
+                           w.HBox([self.run_btn, self.det_btn, self.auto_det])])
         self.preset.observe(lambda c: self._load_preset(), names="value")
+        self.level.observe(lambda c: self._apply_level(), names="value")
         self.run_btn.on_click(lambda _: self.run_simulation())
         self.det_btn.on_click(lambda _: self.run_detector())
 
@@ -115,7 +133,7 @@ class Panel:
     def _param_widget(self, f):
         name, meta = f.name, f.metadata
         unit = f" ({meta['unit']})" if meta["unit"] else ""
-        label, lo, hi = f"{name}{unit}", meta["lo"], meta["hi"]
+        label, lo, hi = f"{pg.guide(name)['title']}{unit}", meta["lo"], meta["hi"]
         kinds = f.type.replace(" ", "").split("|")
         kw = dict(description=label, style=STYLE, layout=FULL)
         if f.type == "bool":
@@ -125,11 +143,11 @@ class Panel:
         if name == "gas":
             return w.Dropdown(options=list(sim.GASES) + ["personalizado"], value=f.default, **kw)
         if name in SLIDERS:
-            a, b, st_, text, fmt = SLIDERS[name]
-            return w.FloatSlider(value=float(f.default), min=a, max=b, step=st_, description=text, style=STYLE, layout=FULL,
+            a, b, st_, _text, fmt = SLIDERS[name]
+            return w.FloatSlider(value=float(f.default), min=a, max=b, step=st_, description=label, style=STYLE, layout=FULL,
                                  continuous_update=False, readout_format=fmt)
         if name == "flow_g_s":
-            return w.SelectionSlider(options=FLOWS, value=0.1, description="Caudal (g/s)", style=STYLE, layout=FULL,
+            return w.SelectionSlider(options=FLOWS, value=0.1, description=label, style=STYLE, layout=FULL,
                                      continuous_update=False)
         if "int" in kinds:
             return w.BoundedIntText(value=int(f.default), min=int(lo), max=int(hi), step=1, **kw)
@@ -140,58 +158,193 @@ class Panel:
 
     def _make(self, f):
         """Crea el widget de un parámetro (con su casilla «definir» si puede ser None) y lo devuelve ya empaquetado."""
-        widget = _set_tip(self._param_widget(f), f.metadata["doc"])
+        tip = pg.help_text(f.name, _fmt(getattr(sim.Config(), f.name)))
+        widget = _set_tip(self._param_widget(f), tip)
         self.W[f.name] = widget
         if f.name in OPTIONAL:
-            chk = _set_tip(w.Checkbox(value=False, description=f"Definir {f.name}", indent=False, layout=FULL), f.metadata["doc"])
+            chk = _set_tip(w.Checkbox(value=False, description=f"Definir: {pg.guide(f.name)['title']}", indent=False,
+                                      layout=FULL), tip)
             widget.disabled = True
             chk.observe(lambda c, wd=widget: setattr(wd, "disabled", not c["new"]), names="value")
             self.U[f.name] = chk
-            return w.VBox([chk, widget])
-        return widget
+            box = w.VBox([chk, widget])
+        else:
+            box = w.VBox([widget])
+        self.boxes[f.name] = box
+        return box
 
-    def _more(self, groups, skip, title):
-        boxes = []
-        for g in groups:
-            items = [w.HTML(f"<b>{g}</b>")] + [self._make(f) for f in CONFIG_FIELDS
-                                                if f.metadata["group"] == g and f.name not in skip]
-            boxes.append(w.VBox(items))
-        acc = w.Accordion(children=[w.VBox(boxes)], selected_index=None)
-        acc.set_title(0, title)
-        return acc
+    def _det_widget(self, name, wd):
+        self.D[name] = _set_tip(wd, pg.help_text(name, _fmt(core.DET_PARAM_DEFAULTS.get(name))))
+        self.dboxes[name] = w.VBox([self.D[name]])        # contenedor propio: así se oculta sin tocar el Layout compartido
+        return self.dboxes[name]
 
     def _build_settings(self):
+        self.boxes: dict[str, w.Widget] = {}
+        self.dboxes: dict[str, w.Widget] = {}
+        self.D: dict[str, w.Widget] = {}
         by = {f.name: f for f in CONFIG_FIELDS}
         h = lambda t: w.HTML(f'<h4 style="margin:6px 0">{t}</h4>')                     # noqa: E731
-        video = w.VBox([h("1 · Vídeo y cámara")] + [self._make(by[n]) for n in VIDEO_MAIN] +
-                       [self._more(VIDEO_GROUPS, VIDEO_MAIN, "Más parámetros de vídeo y cámara")],
-                       layout=w.Layout(width="25%"))
-        simul = w.VBox([h("2 · Simulación del gas")] + [self._make(by[n]) for n in SIM_MAIN] +
-                       [self._more(SIM_GROUPS, SIM_MAIN, "Más parámetros de la simulación del gas")],
-                       layout=w.Layout(width="25%"))
-        pert = w.VBox([h("Perturbaciones del mundo real")] +
-                      [self._more(["Perturbaciones del mundo real"], [], "Todas las perturbaciones")], layout=w.Layout(width="25%"))
-        self.D = dict(
-            input=_set_tip(w.Dropdown(options=["u8", "temp"], value="u8", description="Entrada", style=STYLE, layout=FULL),
-                           "u8 = vídeo de 8 bit; temp = matriz radiométrica"),
-            auto_gf=w.Checkbox(value=True, description="Periodo sin gas automático (80 % del tiempo antes de la fuga)",
-                               indent=False, layout=FULL),
-            gas_free_s=w.BoundedFloatText(value=1.0, min=0.1, max=60, step=0.1, description="Periodo sin gas (s)",
-                                          style=STYLE, layout=FULL, disabled=True),
-            z_low=w.BoundedFloatText(value=2.5, min=0.5, max=10, step=0.1, description="z_low (σ)", style=STYLE, layout=FULL),
-            z_high=w.BoundedFloatText(value=4.5, min=0.5, max=20, step=0.1, description="z_high (σ)", style=STYLE, layout=FULL),
-            sigma_px=w.BoundedFloatText(value=2.0, min=0.5, max=10, step=0.5, description="Suavizado (px)", style=STYLE, layout=FULL),
-            window_s=w.BoundedFloatText(value=0.2, min=0.04, max=2, step=0.04, description="Promedio temporal (s)", style=STYLE, layout=FULL),
-            min_area=w.BoundedIntText(value=40, min=1, max=5000, step=5, description="Área mínima (px)", style=STYLE, layout=FULL))
-        self.D["auto_gf"].observe(lambda c: setattr(self.D["gas_free_s"], "disabled", c["new"]), names="value")
-        det = w.VBox([h("3 · Cálculos del detector")] + list(self.D.values()), layout=w.Layout(width="25%"))
-        self.settings_box = w.VBox([w.HBox([video, simul, pert, det], layout=w.Layout(align_items="flex-start")),
-                                    w.HTML("<small>Referencia de parámetros: docs/parametros.md. <code>band_fraction</code> y "
-                                           "<code>k_abs</code> son marcadores: hay que calibrarlos con la cámara real.</small>")])
+        cols = {"video": [], "gas": [], "perturb": []}
+        place = {"video": "video", "escena": "video", "gas": "gas", "viento": "gas", "perturb": "perturb", "salida": "perturb"}
+        self.headers: dict[str, tuple[w.HTML, list[str]]] = {}
+        for part, title in PART_ORDER:
+            hd = h(title)
+            names = [f.name for f in CONFIG_FIELDS if pg.guide(f.name)["part"] == part]
+            self.headers[part] = (hd, names)
+            cols[place[part]] += [hd] + [self._make(by[n]) for n in names]
+        t = lambda n: pg.guide(n)["title"]                                              # noqa: E731
+        opt = lambda d: [(v, k) for k, v in d.items()]                                  # noqa: E731
+        fl = lambda **k: dict(style=STYLE, layout=FULL, **k)                            # noqa: E731
+        dv = core.DET_PARAM_DEFAULTS
+        self.D_profile = w.Dropdown(options=list(core.DETECTOR_PROFILES), value="Estable (por defecto)",
+                                    description="Qué detector usar", **fl())
+        self.profile_info = w.HTML("")
+        self.auto_gf = w.Checkbox(value=True, description="Periodo sin gas automático (80 % del tiempo antes de la fuga)",
+                                  indent=False, layout=FULL)
+        self._det_widget("input", w.Dropdown(options=["u8", "temp"], value="u8", description=t("input"), **fl()))
+        self._det_widget("gas_free_s", w.BoundedFloatText(value=1.0, min=0.1, max=60, step=0.1, disabled=True,
+                                                          description=t("gas_free_s") + " (s)", **fl()))
+        self._det_widget("z_low", w.BoundedFloatText(value=dv["z_low"], min=0.5, max=10, step=0.1, description=t("z_low"), **fl()))
+        self._det_widget("z_high", w.BoundedFloatText(value=dv["z_high"], min=0.5, max=20, step=0.1, description=t("z_high"), **fl()))
+        self._det_widget("sigma_px", w.BoundedFloatText(value=dv["sigma_px"], min=0.5, max=10, step=0.5,
+                                                        description=t("sigma_px") + " (px)", **fl()))
+        self._det_widget("window_s", w.BoundedFloatText(value=dv["window_s"], min=0.04, max=2, step=0.04,
+                                                        description=t("window_s") + " (s)", **fl()))
+        self._det_widget("min_area", w.BoundedIntText(value=dv["min_area"], min=1, max=5000, step=5,
+                                                      description=t("min_area") + " (px)", **fl()))
+        self._det_widget("background", w.Dropdown(options=opt(dict(static="Fijo (aprendido al principio)", adaptive="Adaptativo")),
+                                                  value="static", description=t("background"), **fl()))
+        self._det_widget("drift_order", w.Dropdown(options=[("Solo un nivel global", 0), ("Superficie plana inclinada", 1),
+                                                            ("Superficie curva", 2)], value=0, description=t("drift_order"), **fl()))
+        self._det_widget("stabilize", w.Checkbox(value=False, description=t("stabilize"), indent=False, layout=FULL))
+        self._det_widget("polarity", w.Dropdown(options=opt(dict(both="Cualquiera", dark="Solo más oscuro", bright="Solo más claro",
+                                                                 auto="Automático según la escena")), value="both",
+                                                description=t("polarity"), **fl()))
+        self._det_widget("auto_threshold", w.Checkbox(value=False, description=t("auto_threshold"), indent=False, layout=FULL))
+        self._det_widget("roi_text", w.Text(value="", placeholder="0.1,0.1; 0.9,0.1; 0.9,0.9", description=t("roi_text"), **fl()))
+        self._det_widget("require_source", w.Checkbox(value=False, description=t("require_source"), indent=False, layout=FULL))
+        self._det_widget("bg_tau_s", w.BoundedFloatText(value=dv["bg_tau_s"], min=1, max=600, step=1,
+                                                        description=t("bg_tau_s") + " (s)", **fl()))
+        self._det_widget("source_text", w.Text(value="", description=t("source_text"), **fl()))
+        self._det_widget("bg_margin_px", w.BoundedIntText(value=dv["bg_margin_px"], min=0, max=50, description=t("bg_margin_px") + " (px)", **fl()))
+        self._det_widget("bg_hold_on_alarm", w.Checkbox(value=True, description=t("bg_hold_on_alarm"), indent=False, layout=FULL))
+        self._det_widget("max_shift_px", w.BoundedFloatText(value=dv["max_shift_px"], min=1, max=30, step=1,
+                                                            description=t("max_shift_px") + " (px)", **fl()))
+        self.D["gas_free_s"].disabled = True
+        self.auto_gf.observe(lambda c: setattr(self.D["gas_free_s"], "disabled", c["new"]), names="value")
+        self.D_profile.observe(lambda c: self._apply_profile(), names="value")
+        det = w.VBox([h("7 · Detector (los cálculos)"), self.D_profile, self.profile_info, self.auto_gf] + list(self.dboxes.values()))
+        for c in (self.D["gas_free_s"], ):
+            pass
+        L = lambda x: w.Layout(width="25%")                                             # noqa: E731
+        columns = [w.VBox(cols["video"], layout=L(0)), w.VBox(cols["gas"], layout=L(0)),
+                   w.VBox(cols["perturb"], layout=L(0)), w.VBox([det], layout=L(0))]
+        # resumen de cambios
+        self.changes_html = w.HTML("")
+        self.changes_pick = w.Dropdown(options=[], description="Devolver a su valor", style=STYLE, layout=w.Layout(width="420px"))
+        self.changes_btn = w.Button(description="Devolver este", layout=w.Layout(width="130px"))
+        self.reset_btn = w.Button(description="Todo por defecto", icon="undo", layout=w.Layout(width="150px"))
+        self.changes_btn.on_click(lambda _: self._reset_one())
+        self.reset_btn.on_click(lambda _: self.reset_all())
+        self.changes_box = w.Accordion(children=[w.VBox([self.changes_html, w.HBox([self.changes_pick, self.changes_btn, self.reset_btn])])],
+                                       selected_index=None)
+        self.changes_box.set_title(0, "Lo que has cambiado (0)")
+        self.settings_box = w.VBox([self.changes_box,
+                                    w.HBox(columns, layout=w.Layout(align_items="flex-start")),
+                                    w.HTML("<small>Guía de cada ajuste: pestaña «Guía» o pasa el ratón por el nombre. "
+                                           "<code>band_fraction</code> y <code>k_abs</code> son marcadores: hay que calibrarlos "
+                                           "con la cámara real.</small>")])
+        self._build_guide()
+        self._watching = False
 
-    def set_params(self, over: dict):
+    def _watch_changes(self):
+        if self._watching:
+            return
+        self._watching = True
+        for wd in list(self.W.values()) + list(self.U.values()) + list(self.D.values()) + [self.auto_gf]:
+            wd.observe(lambda c: self._update_changes(), names="value")
+
+    # ------------------------------------------------------------------ niveles, perfiles y cambios
+    def _apply_level(self):
+        order = {"B": 0, "A": 1, "E": 2}[self.level.value]
+        sim_vis = set(pg.names_at_level(self.level.value, "sim"))
+        det_vis = set(pg.names_at_level(self.level.value, "det"))
+        for name, box in self.boxes.items():
+            box.layout.display = "" if name in sim_vis else "none"
+        for part, (hd, names) in self.headers.items():
+            hd.layout.display = "" if any(n in sim_vis for n in names) else "none"
+        for name, box in self.dboxes.items():
+            box.layout.display = "" if (name in det_vis or name == "gas_free_s") else "none"
+        del order
+
+    def _apply_profile(self):
+        prof = core.DETECTOR_PROFILES[self.D_profile.value]
+        self.profile_info.value = (f"<small>{html.escape(prof['desc'])}<br><b>Coste:</b> {html.escape(prof['cost'])}</small>")
+        for k, v in {**core.DET_PARAM_DEFAULTS, **prof["params"]}.items():
+            if k in self.D and k != "gas_free_s":
+                self.D[k].value = v
+
+    def _update_changes(self):
+        try:
+            cfg = self.config()
+        except ValueError:
+            return
+        ch = core.changed_from_default(cfg)
+        dch = core.changed_detector(self.det_params())
+        rows = [f"<li><b>{html.escape(pg.guide(n)['title'])}</b>: {html.escape(_fmt(v))} <small>(por defecto {html.escape(_fmt(d))})</small></li>"
+                for n, v, d in ch]
+        rows += [f"<li><b>Detector · {html.escape(pg.guide(n)['title'])}</b>: {html.escape(_fmt(v))} "
+                 f"<small>(por defecto {html.escape(_fmt(d))})</small></li>" for n, v, d in dch]
+        self.changes_html.value = "<ul>" + "".join(rows) + "</ul>" if rows else "Todo está en sus valores por defecto."
+        self.changes_box.set_title(0, f"Lo que has cambiado ({len(rows)})")
+        cur = self.changes_pick.value
+        opts = [(pg.guide(n)["title"], n) for n, _, _ in ch]
+        self.changes_pick.options = opts
+        if cur in [o[1] for o in opts]:
+            self.changes_pick.value = cur
+
+    def _reset_one(self):
+        n = self.changes_pick.value
+        if n:
+            self.set_params({n: getattr(sim.Config(), n)}, only=n)
+
+    def reset_all(self):
+        self.set_params({})
+        self.D_profile.value = "Estable (por defecto)"
+        self._apply_profile()
+        self.auto_gf.value = True
+        self.preset.value = NO_PRESET
+
+    def _build_guide(self):
+        self.guide_q = w.Text(placeholder="Buscar: ruido, viento, umbral…", description="Buscar", layout=w.Layout(width="420px"))
+        self.guide_lv = w.ToggleButtons(options=[("Todos", "E")] + [(v, k) for k, v in pg.LEVELS.items() if k != "E"], value="E",
+                                        description="Hasta el nivel")
+        self.guide_html = w.HTML("")
+        self.guide_box = w.VBox([w.HTML("<p>Qué hace cada ajuste, qué pasa si lo subes y qué valor suele ir bien. "
+                                        "<b>Los valores por defecto están elegidos para que todo funcione: si no sabes qué hace "
+                                        "un ajuste, no lo toques.</b></p>"), w.HBox([self.guide_q, self.guide_lv]), self.guide_html])
+        self.guide_q.observe(lambda c: self._render_guide(), names="value")
+        self.guide_lv.observe(lambda c: self._render_guide(), names="value")
+        self._render_guide()
+
+    def _render_guide(self):
+        q, lv = self.guide_q.value.strip().lower(), {"B": 0, "A": 1, "E": 2}[self.guide_lv.value]
+        rows = []
+        for name in list(pg.GUIDE) + list(pg.DETECTOR_GUIDE):
+            g = pg.guide(name)
+            d = _fmt(getattr(sim.Config(), name)) if name in pg.GUIDE else _fmt(core.DET_PARAM_DEFAULTS.get(name))
+            cells = [g["title"], g["level_name"], g["part_name"], g["what"], g["up"], g["typical"], d]
+            if {"B": 0, "A": 1, "E": 2}[g["level"]] <= lv and (not q or q in (" ".join(cells) + name).lower()):
+                rows.append("<tr>" + "".join(f"<td>{html.escape(str(c))}</td>" for c in cells) + "</tr>")
+        head = "".join(f"<th>{h}</th>" for h in ["Ajuste", "Nivel", "Parte", "Qué hace", "Si lo subes", "Valor típico", "Por defecto"])
+        self.guide_html.value = (f"<div style='max-height:520px;overflow:auto'><small>{len(rows)} ajustes</small>"
+                                 f"<table style='font-size:12px;border-collapse:collapse'><tr>{head}</tr>{''.join(rows)}</table></div>")
+
+    def set_params(self, over: dict, only: str | None = None):
         cfg = sim.apply_overrides(sim.Config(), over)
         for f in CONFIG_FIELDS:
+            if only and f.name != only:
+                continue
             v = getattr(cfg, f.name)
             if f.name in OPTIONAL:
                 self.U[f.name].value = v is not None
@@ -206,10 +359,14 @@ class Panel:
     def _load_preset(self):
         name = self.preset.value
         try:
-            self.set_params({} if name == "Por defecto" else sim.load_preset(name))
-            self._say(f"Preset «{name}» cargado.", "ok")
+            self.set_params({} if name == NO_PRESET else sim.load_preset(name))
         except ValueError as err:
             self._say(str(err), "error")
+            return
+        det = self.catalog[name]["detector"] if name in self.catalog else "Estable (por defecto)"
+        self.D_profile.value = det
+        self._apply_profile()
+        self._say(f"Escenario «{self.preset.label}» cargado. Detector sugerido: {det}.", "ok")
 
     def config(self) -> sim.Config:
         over = {}
@@ -219,10 +376,10 @@ class Panel:
         return sim.apply_overrides(sim.Config(), over)
 
     def det_params(self) -> dict:
-        d = self.D
-        return dict(input=d["input"].value, gas_free_s=None if d["auto_gf"].value else d["gas_free_s"].value,
-                    z_low=d["z_low"].value, z_high=d["z_high"].value, sigma_px=d["sigma_px"].value,
-                    window_s=d["window_s"].value, min_area=int(d["min_area"].value))
+        p = {k: self.D[k].value for k in core.DET_PARAM_DEFAULTS if k != "gas_free_s"}
+        p["gas_free_s"] = None if self.auto_gf.value else self.D["gas_free_s"].value
+        p["min_area"], p["drift_order"] = int(p["min_area"]), int(p["drift_order"])
+        return p
 
     # ------------------------------------------------------------------ ejecución
     def run_simulation(self):

@@ -1,4 +1,6 @@
 {
+ "_title": "Vídeo comprimido",
+ "_detector": "Vídeo comprimido",
  "_comment": "Vídeo comprimido (calidad 25 tipo JPEG sobre el vídeo de 8 bit).",
  "scene": "hot_plate",
  "t_bg_c": 70.0,

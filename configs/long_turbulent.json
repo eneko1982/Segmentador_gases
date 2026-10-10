@@ -1,4 +1,16 @@
-{"_comment": "Vídeo largo con mucha turbulencia y viento fuerte; sin mapa de columna para ahorrar memoria.",
- "scene": "hot_plate", "t_bg_c": 70.0, "duration_s": 30.0, "leak_on_s": 2.0,
- "wind_ms": 0.8, "gust_ms": 0.4, "gust_tau_s": 4.0, "turb_rms": 0.35, "turb_n_modes": 120, "jet_turb": 0.4,
- "store_cl": false}
+{
+ "_title": "Vídeo largo con viento y turbulencia",
+ "_detector": "Estable (por defecto)",
+ "_comment": "Vídeo largo con mucha turbulencia y viento fuerte; sin mapa de columna para ahorrar memoria.",
+ "scene": "hot_plate",
+ "t_bg_c": 70.0,
+ "duration_s": 30.0,
+ "leak_on_s": 2.0,
+ "wind_ms": 0.8,
+ "gust_ms": 0.4,
+ "gust_tau_s": 4.0,
+ "turb_rms": 0.35,
+ "turb_n_modes": 120,
+ "jet_turb": 0.4,
+ "store_cl": false
+}

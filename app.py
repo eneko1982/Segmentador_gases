@@ -41,8 +41,10 @@ import ogi_sim as sim  # noqa: E402
 import viewer  # noqa: E402
 from analysis import PRED_KINDS, TRUTH_KINDS, WINDOWS, Analysis  # noqa: E402
 import core  # noqa: E402
+import param_guide as pg  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
+CATALOG = core.preset_catalog()
 CONFIG_FIELDS = fields(sim.Config)
 OPTIONAL = {f.name for f in CONFIG_FIELDS if "None" in f.type.replace(" ", "").split("|")}
 NONE_FALLBACK = dict(level_c=25.0, span_c=10.0, t_exit_c=22.0, leak_off_s=3.0,
@@ -55,9 +57,10 @@ VIDEO_MAIN = ["scene", "t_bg_c", "netd_k", "duration_s"]
 SIM_MAIN = ["gas", "flow_g_s", "leak_on_s", "wind_ms", "gust_ms", "turb_rms"]
 VIDEO_GROUPS = ["Cámara", "Escena", "Salida y ejecución"]
 SIM_GROUPS = ["Gas y fuga", "Chorro y pluma", "Viento y turbulencia"]
-DET_DEFAULTS = dict(det_input="u8", det_auto_gf=True, det_gas_free=1.0, det_zlow=2.5, det_zhigh=4.5,
-                    det_sigma=2.0, det_window=0.2, det_area=40)
-UI_DEFAULTS = dict(auto_det=True, res_mode="Rápida (½ resolución)", vid_truth_kind="det", vid_truth_mk=35.0,
+DET_DEFAULTS = {"det_auto_gf": True, "det_gas_free": 1.0, "det_profile": "Estable (por defecto)",
+                **{f"det_{k}": v for k, v in core.DET_PARAM_DEFAULTS.items() if k != "gas_free_s"}}
+NO_PRESET = "Por defecto"
+UI_DEFAULTS = dict(level="B", auto_det=True, res_mode="Rápida (½ resolución)", vid_truth_kind="det", vid_truth_mk=35.0,
                    vid_pred_kind="mask", vid_pred_mk=35.0, vid_vmax=100, vid_stride=1, vid_zoom=520,
                    res_window="last", res_gallery_k=4, exp_style="contour", exp_opacity=0.9, exp_thick=1,
                    exp_scale=3, exp_views=["cam", "est"], res_views=["cam", "est"], exp_report=True, exp_gif=True, exp_gif_stride=2,
@@ -71,9 +74,11 @@ st.markdown("<style>section[data-testid='stSidebar']{min-width:400px;max-width:5
 # ---------------------------------------------------------------------------
 # Estado y parámetros del simulador
 # ---------------------------------------------------------------------------
-def set_params(over: dict):
+def set_params(over: dict, only: str | None = None):
     cfg = sim.apply_overrides(sim.Config(), over)
     for f in CONFIG_FIELDS:
+        if only and f.name != only:
+            continue
         v = getattr(cfg, f.name)
         if f.name in OPTIONAL:
             st.session_state[f"u_{f.name}"] = v is not None
@@ -82,6 +87,9 @@ def set_params(over: dict):
 
 
 def init_state():
+    # Streamlit olvida los widgets que no se dibujan (p. ej. al bajar el nivel): se reasigna cada valor para conservarlo.
+    for k in [k for k in st.session_state if k.startswith(("p_", "u_", "det_"))]:
+        st.session_state[k] = st.session_state[k]
     if "p_scene" not in st.session_state:
         set_params({})
     for k, v in {**DET_DEFAULTS, **UI_DEFAULTS}.items():
@@ -91,9 +99,12 @@ def init_state():
 def on_preset():
     name = st.session_state["preset"]
     try:
-        set_params({} if name == "Por defecto" else sim.load_preset(name))
+        set_params({} if name == NO_PRESET else sim.load_preset(name))
     except ValueError as err:
         st.session_state["preset_error"] = str(err)
+        return
+    st.session_state["det_profile"] = CATALOG[name]["detector"] if name in CATALOG else DET_DEFAULTS["det_profile"]
+    apply_profile()
 
 
 def current_config() -> sim.Config:
@@ -122,35 +133,68 @@ def _step(default: float) -> float:
     return 0.01 if not default else 10.0 ** (math.floor(math.log10(abs(default))) - 1)
 
 
+def _fmt(v) -> str:
+    if v is None:
+        return "sin definir"
+    if isinstance(v, bool):
+        return "sí" if v else "no"
+    return f"{v:g}" if isinstance(v, float) else str(v)
+
+
+def _default(name: str):
+    return getattr(sim.Config(), name)
+
+
+def _label(name: str) -> str:
+    f = sim.Config.__dataclass_fields__[name]
+    unit = f" ({f.metadata['unit']})" if f.metadata["unit"] else ""
+    return f"{pg.guide(name)['title']}{unit}"
+
+
+def _help(name: str) -> str:
+    return pg.help_text(name, _fmt(_default(name)))
+
+
 def gas_widget(label="Gas", doc=""):
     options = list(sim.GASES) + ["personalizado"]
     if st.session_state["p_gas"] not in options:
         options.insert(0, st.session_state["p_gas"])
     st.selectbox(label, options, key="p_gas", help=(doc or "Gas liberado.") +
-                 " «personalizado» exige masa molar y densidad (grupo Gas y fuga, «Más parámetros»).")
+                 " «personalizado» exige masa molar y densidad (nivel Experto).")
 
 
-def slider(name: str, lo: float, hi: float, step: float, label: str, help: str = ""):
+def slider(name: str, lo: float, hi: float, step: float):
     """Deslizador de rango fijo (si cambiara, Streamlit lo reiniciaría); solo se amplía si un valor cargado queda fuera."""
     v = st.session_state[f"p_{name}"]
-    st.slider(label, min_value=min(lo, v), max_value=max(hi, v), step=step, key=f"p_{name}", help=help, format="%g")
+    st.slider(_label(name), min_value=min(lo, v), max_value=max(hi, v), step=step, key=f"p_{name}", help=_help(name),
+              format="%g")
+
+
+SLIDERS = dict(netd_k=(0.005, 0.2, 0.005), duration_s=(1.0, 60.0, 0.5), leak_on_s=(0.0, 60.0, 0.1),
+               wind_ms=(-5.0, 5.0, 0.05), gust_ms=(0.0, 2.0, 0.01), turb_rms=(0.0, 1.0, 0.01))
 
 
 def widget(f):
-    """Widget genérico para un parámetro de Config (según su tipo y su rango)."""
+    """Widget de un parámetro de Config: etiqueta en lenguaje llano y ayuda con qué hace, qué pasa si se sube y valor típico."""
     name, meta, key = f.name, f.metadata, f"p_{f.name}"
-    unit = f" ({meta['unit']})" if meta["unit"] else ""
-    label, doc, lo, hi = f"{name}{unit}", meta["doc"], meta["lo"], meta["hi"]
-    if f.type == "bool":
+    label, doc, lo, hi = _label(name), _help(name), meta["lo"], meta["hi"]
+    if name in SLIDERS:
+        slider(name, *SLIDERS[name])
+    elif name == "flow_g_s":
+        v = st.session_state[key]
+        st.select_slider(label, options=sorted(set(FLOW_OPTIONS + [v])), key=key, help=doc)
+    elif f.type == "bool":
         st.checkbox(label, key=key, help=doc)
+    elif name == "scene":
+        st.selectbox(label, sim.SCENES, key=key, format_func=SCENE_LABEL.get, help=doc)
     elif meta["choices"]:
-        st.selectbox(label, meta["choices"], key=key, help=doc, format_func=SCENE_LABEL.get)
+        st.selectbox(label, meta["choices"], key=key, help=doc, format_func=lambda c: SCENE_LABEL.get(c, c))
     elif name == "gas":
         gas_widget(label, doc)
     else:
         disabled = False
         if name in OPTIONAL:
-            disabled = not st.checkbox(f"Definir {name}", key=f"u_{name}", help=doc)
+            disabled = not st.checkbox(f"Definir: {pg.guide(name)['title']}", key=f"u_{name}", help=doc)
         if "int" in f.type.replace(" ", "").split("|"):
             st.number_input(label, key=key, min_value=int(lo), max_value=int(hi), step=1, help=doc, disabled=disabled)
         else:
@@ -159,54 +203,119 @@ def widget(f):
                             format="%g", help=doc, disabled=disabled)
 
 
-def more_parameters(groups, skip):
-    for g in groups:
-        st.markdown(f"**{g}**")
-        for f in CONFIG_FIELDS:
-            if f.metadata["group"] == g and f.name not in skip:
+def level_names() -> set:
+    return set(pg.names_at_level(st.session_state["level"], "sim"))
+
+
+def simulator_sections():
+    """Parámetros del simulador agrupados por la parte del sistema a la que afectan, filtrados por nivel."""
+    visible = level_names()
+    order = [("video", "1 · Vídeo y cámara"), ("escena", "2 · Escena"), ("gas", "3 · Gas y fuga"),
+             ("viento", "4 · Viento y turbulencia"), ("perturb", "5 · Perturbaciones del mundo real"),
+             ("salida", "6 · Salida")]
+    for part, title in order:
+        fields_ = [f for f in CONFIG_FIELDS if f.name in visible and pg.guide(f.name)["part"] == part]
+        if not fields_:
+            continue
+        with st.expander(title, expanded=part in ("video", "gas")):
+            if part == "video":
+                st.radio("Resolución", ["Rápida (½ resolución)", "Completa"], key="res_mode", horizontal=True,
+                         help="La vista rápida usa la mitad de píxeles con el mismo campo de visión: unas 4 veces más rápida.")
+            for f in fields_:
                 widget(f)
 
 
-def video_section():
-    st.selectbox("Escena", sim.SCENES, key="p_scene", format_func=SCENE_LABEL.get,
-                 help=sim.Config.__dataclass_fields__["scene"].metadata["doc"])
-    st.number_input("Temperatura del fondo (°C)", key="p_t_bg_c", step=1.0, format="%g", min_value=-80.0,
-                    max_value=400.0, help="Placa caliente: su temperatura. Cielo frío: temperatura aparente del cielo.")
-    slider("netd_k", 0.005, 0.2, 0.005, "Ruido de la cámara NETD (K)", "Ruido de un píxel en un fotograma.")
-    slider("duration_s", 1.0, 60.0, 0.5, "Duración (s)")
-    st.radio("Resolución", ["Rápida (½ resolución)", "Completa"], key="res_mode", horizontal=True,
-             help="La vista rápida usa la mitad de píxeles con el mismo campo de visión: unas 4 veces más rápida.")
-    if st.toggle("Más parámetros de vídeo y cámara", key="more_video"):
-        more_parameters(VIDEO_GROUPS, VIDEO_MAIN)
+def reset_param(name: str):
+    set_params({name: _default(name)}, only=name)
 
 
-def sim_section():
-    gas_widget()
-    v = st.session_state["p_flow_g_s"]
-    st.select_slider("Caudal (g/s)", options=sorted(set(FLOW_OPTIONS + [v])), key="p_flow_g_s",
-                     help="Un bote de aire comprimido suelta del orden de 1 g/s o más; una fuga real pequeña, 0,001–0,01 g/s.")
-    slider("leak_on_s", 0.0, 60.0, 0.1, "La fuga empieza en (s)",
-           "Debe ser anterior al final; el detector necesita ~1 s sin gas al principio.")
-    slider("wind_ms", -5.0, 5.0, 0.05, "Viento horizontal (m/s, + = hacia la derecha)")
-    slider("gust_ms", 0.0, 2.0, 0.01, "Ráfagas (m/s rms)")
-    slider("turb_rms", 0.0, 1.0, 0.01, "Turbulencia ambiente (m/s rms)")
-    if st.toggle("Más parámetros de la simulación del gas", key="more_sim"):
-        more_parameters(SIM_GROUPS, SIM_MAIN)
+def changes_summary():
+    """Lista de lo cambiado respecto al valor por defecto, con un botón para devolver cada uno."""
+    try:
+        cfg = current_config()
+    except ValueError:
+        return
+    ch = core.changed_from_default(cfg)
+    dch = core.changed_detector(det_params())
+    with st.expander(f"Lo que has cambiado ({len(ch) + len(dch)})", expanded=False):
+        if not ch and not dch:
+            st.caption("Todo está en sus valores por defecto.")
+        for name, v, d in ch:
+            c = st.columns([5, 1])
+            c[0].markdown(f"**{pg.guide(name)['title']}**: {_fmt(v)}  \n<small>por defecto {_fmt(d)}</small>",
+                          unsafe_allow_html=True)
+            c[1].button("↩", key=f"rs_{name}", on_click=reset_param, args=(name,), help="Volver al valor por defecto")
+        for name, v, d in dch:
+            st.markdown(f"**Detector · {pg.guide(name)['title']}**: {_fmt(v)}  \n<small>por defecto {_fmt(d)}</small>",
+                        unsafe_allow_html=True)
+        if ch or dch:
+            st.button("Volver a todo por defecto", key="btn_reset_all", on_click=reset_all)
+
+
+def reset_all():
+    st.session_state["preset"] = NO_PRESET
+    set_params({})
+    for k, v in {**DET_DEFAULTS, **UI_DEFAULTS}.items():
+        st.session_state[k] = v
+
+
+def apply_profile():
+    prof = core.DETECTOR_PROFILES.get(st.session_state["det_profile"])
+    if prof is None:
+        return
+    for k, v in {**core.DET_PARAM_DEFAULTS, **prof["params"]}.items():
+        if f"det_{k}" in st.session_state:
+            st.session_state[f"det_{k}"] = v
 
 
 def detector_section():
-    st.radio("Entrada", ["u8", "temp"], key="det_input", horizontal=True,
-             help="u8 = vídeo de 8 bit; temp = matriz radiométrica (temp_ck).")
-    st.checkbox("Periodo sin gas automático (80 % del tiempo antes de la fuga)", key="det_auto_gf")
-    st.number_input("Periodo sin gas (s)", 0.1, 60.0, step=0.1, key="det_gas_free", disabled=st.session_state["det_auto_gf"],
-                    help="Tramo inicial sin gas: se usa para aprender el fondo y el ruido.")
-    c = st.columns(2)
-    c[0].number_input("z_low (σ)", 0.5, 10.0, step=0.1, key="det_zlow", help="Umbral bajo de la histéresis.")
-    c[1].number_input("z_high (σ)", 0.5, 20.0, step=0.1, key="det_zhigh", help="Umbral alto de la histéresis.")
-    c = st.columns(2)
-    c[0].number_input("Suavizado (px)", 0.5, 10.0, step=0.5, key="det_sigma", help="σ de la gaussiana espacial.")
-    c[1].number_input("Promedio temporal (s)", 0.04, 2.0, step=0.04, key="det_window", format="%g")
-    st.number_input("Área mínima (px)", 1, 5000, step=5, key="det_area")
+    s = st.session_state
+    lvl = pg.names_at_level(s["level"], "det")
+    st.selectbox("Qué detector usar", list(core.DETECTOR_PROFILES), key="det_profile", on_change=apply_profile,
+                 help="Perfiles ya preparados. Si no sabes cuál, deja «Estable» salvo que tu vídeo tenga sol, vibración, "
+                      "obturador o compresión (los escenarios de arriba sugieren uno).")
+    prof = core.DETECTOR_PROFILES[s["det_profile"]]
+    st.caption(f"{prof['desc']}  \n**Coste:** {prof['cost']}")
+
+    def has(n):
+        return n in lvl
+
+    def h(n):
+        return pg.help_text(n, _fmt(core.DET_PARAM_DEFAULTS.get(n)))
+
+    def t(n):
+        return pg.guide(n)["title"]
+
+    if has("input"):
+        st.radio(t("input"), ["u8", "temp"], key="det_input", horizontal=True, help=h("input"))
+    st.checkbox("Periodo sin gas automático (80 % del tiempo antes de la fuga)", key="det_auto_gf", help=h("gas_free_s"))
+    st.number_input(t("gas_free_s") + " (s)", 0.1, 60.0, step=0.1, key="det_gas_free", disabled=s["det_auto_gf"], help=h("gas_free_s"))
+    if has("z_low"):
+        c = st.columns(2)
+        c[0].number_input(t("z_low"), 0.5, 10.0, step=0.1, key="det_z_low", help=h("z_low"))
+        c[1].number_input(t("z_high"), 0.5, 20.0, step=0.1, key="det_z_high", help=h("z_high"))
+        c = st.columns(2)
+        c[0].number_input(t("sigma_px") + " (px)", 0.5, 10.0, step=0.5, key="det_sigma_px", help=h("sigma_px"))
+        c[1].number_input(t("window_s") + " (s)", 0.04, 2.0, step=0.04, key="det_window_s", format="%g", help=h("window_s"))
+        st.number_input(t("min_area") + " (px)", 1, 5000, step=5, key="det_min_area", help=h("min_area"))
+    if has("background"):
+        st.selectbox(t("background"), ["static", "adaptive"], key="det_background", help=h("background"),
+                     format_func=lambda c: {"static": "Fijo (aprendido al principio)", "adaptive": "Adaptativo"}[c])
+        st.selectbox(t("drift_order"), [0, 1, 2], key="det_drift_order", help=h("drift_order"),
+                     format_func=lambda c: {0: "Solo un nivel global", 1: "Superficie plana inclinada", 2: "Superficie curva"}[c])
+        st.checkbox(t("stabilize"), key="det_stabilize", help=h("stabilize"))
+        st.selectbox(t("polarity"), ["both", "dark", "bright", "auto"], key="det_polarity", help=h("polarity"),
+                     format_func=lambda c: dict(both="Cualquiera", dark="Solo más oscuro", bright="Solo más claro",
+                                                auto="Automático según la escena")[c])
+        st.checkbox(t("auto_threshold"), key="det_auto_threshold", help=h("auto_threshold"))
+        st.text_input(t("roi_text"), key="det_roi_text", help=h("roi_text"), placeholder="0.1,0.1; 0.9,0.1; 0.9,0.9")
+        st.checkbox(t("require_source"), key="det_require_source", help=h("require_source"))
+    if has("bg_tau_s"):
+        st.number_input(t("bg_tau_s") + " (s)", 1.0, 600.0, step=1.0, key="det_bg_tau_s", help=h("bg_tau_s"))
+        st.text_input(t("source_text"), key="det_source_text", help=h("source_text"))
+        st.number_input(t("bg_margin_px") + " (px)", 0, 50, step=1, key="det_bg_margin_px", help=h("bg_margin_px"))
+        st.checkbox(t("bg_hold_on_alarm"), key="det_bg_hold_on_alarm", help=h("bg_hold_on_alarm"))
+        st.number_input(t("max_shift_px") + " (px)", 1.0, 30.0, step=1.0, key="det_max_shift_px", help=h("max_shift_px"))
 
 
 # ---------------------------------------------------------------------------
@@ -240,8 +349,9 @@ def det_params() -> dict:
     s = st.session_state
     info = seq_info(s["seq"]) if "seq" in s else None
     gf = 0.8 * info["leak_on_s"] if (info and s["det_auto_gf"]) else s["det_gas_free"]
-    return dict(input=s["det_input"], gas_free_s=round(gf, 3), z_low=s["det_zlow"], z_high=s["det_zhigh"],
-                sigma_px=s["det_sigma"], window_s=s["det_window"], min_area=int(s["det_area"]))
+    p = {k: s[f"det_{k}"] for k in core.DET_PARAM_DEFAULTS if k != "gas_free_s"}
+    p.update(gas_free_s=round(gf, 3), min_area=int(p["min_area"]), drift_order=int(p["drift_order"]))
+    return p
 
 
 def run_detector():
@@ -282,10 +392,16 @@ def load_uploaded(file) -> dict | None:
 def sidebar():
     with st.sidebar:
         st.markdown("## 🌫️ Segmentador de gases")
-        st.selectbox("Preset", ["Por defecto"] + sorted(p.stem for p in sim.PRESET_DIR.glob("*.json")), key="preset",
-                     on_change=on_preset, help="Carga un conjunto de parámetros de la carpeta configs/.")
+        names = {NO_PRESET: NO_PRESET} | {k: v["title"] for k, v in CATALOG.items()}
+        st.selectbox("Escenario", list(names), key="preset", on_change=on_preset, format_func=names.get,
+                     help="Situaciones ya preparadas (carpeta configs/). Al elegir una se cargan sus parámetros y se sugiere el detector adecuado.")
+        if st.session_state["preset"] in CATALOG:
+            st.caption(CATALOG[st.session_state["preset"]]["comment"])
         if st.session_state.pop("preset_error", None):
-            st.error("No se pudo cargar el preset.")
+            st.error("No se pudo cargar el escenario.")
+        st.radio("Cuántos ajustes ver", list(pg.LEVELS), key="level", horizontal=True, format_func=pg.LEVELS.get,
+                 help="Básico: lo que normalmente se toca (unos 14 ajustes). Avanzado: más detalle. Experto: los 100+ parámetros. "
+                      "Lo que no ves conserva su valor por defecto. Pasa el ratón por el «?» de cada ajuste para ver qué hace.")
         try:
             cfg = current_config()
             run_cfg = sim.half_resolution(cfg) if st.session_state["res_mode"].startswith("Rápida") else cfg
@@ -301,11 +417,9 @@ def sidebar():
         c[0].checkbox("Calcular el detector tras simular", key="auto_det")
         if c[1].button("Recalcular detector", key="btn_det", disabled="seq" not in st.session_state):
             run_detector()
-        with st.expander("1 · Vídeo y cámara", expanded=True):
-            video_section()
-        with st.expander("2 · Simulación del gas", expanded=True):
-            sim_section()
-        with st.expander("3 · Cálculos del detector", expanded=True):
+        changes_summary()
+        simulator_sections()
+        with st.expander("7 · Detector (los cálculos)", expanded=True):
             detector_section()
         with st.expander("Cargar una secuencia .npz"):
             file = st.file_uploader("Archivo de ogi_sim.py", type=["npz"], key="up_file")
@@ -317,13 +431,8 @@ def sidebar():
         with st.expander("Comando equivalente (resolución completa)"):
             if ok:
                 st.code(command_line(cfg), language="bash")
-        if st.button("Restablecer parámetros", key="btn_reset"):
-            st.session_state["preset"] = "Por defecto"
-            set_params({})
-            for k, v in {**DET_DEFAULTS, **UI_DEFAULTS}.items():
-                st.session_state[k] = v
-            st.rerun()
-        st.caption("Referencia de parámetros: docs/parametros.md. `band_fraction` y `k_abs` son marcadores: hay que "
+        st.button("Restablecer todo", key="btn_reset", on_click=reset_all)
+        st.caption("Guía de todos los parámetros: pestaña 📖 Guía. `band_fraction` y `k_abs` son marcadores: hay que "
                    "calibrarlos con la cámara real.")
 
 
@@ -505,7 +614,7 @@ def tab_resultados():
         c[0].markdown("**IoU por fotograma**")
         c[0].altair_chart((base.mark_line(color="#2ea043").encode(y=alt.Y("iou:Q", scale=alt.Scale(domain=[0, 1]), title="IoU")) + rules)
                           .properties(height=200), width="stretch")
-    zl, zh = s["det_zlow"], s["det_zhigh"]
+    zl, zh = s["det_z_low"], s["det_z_high"]
     zr = alt.Chart(pd.DataFrame({"z": [zl, zh]})).mark_rule(strokeDash=[3, 3], color="#2a78d6").encode(y="z:Q")
     c[1].markdown("**Evidencia del detector: |z| máximo**")
     c[1].altair_chart((base.mark_line(color="#6b7280").encode(y=alt.Y("z_max:Q", scale=alt.Scale(type="symlog"), title="|z| máx.")) + zr + rules)
@@ -679,13 +788,35 @@ def tab_comparar():
 # ---------------------------------------------------------------------------
 # Programa principal
 # ---------------------------------------------------------------------------
+def tab_guia():
+    st.markdown("Qué hace cada ajuste, qué pasa si lo subes y qué valor suele ir bien. **Los valores por defecto están "
+                "elegidos para que todo funcione: si no sabes qué hace un ajuste, no lo toques.**")
+    c = st.columns([3, 2, 2])
+    q = c[0].text_input("Buscar", key="guide_q", placeholder="p. ej. ruido, viento, umbral…").strip().lower()
+    lv = c[1].multiselect("Nivel", list(pg.LEVELS), default=list(pg.LEVELS), format_func=pg.LEVELS.get, key="guide_lv")
+    pt = c[2].multiselect("Parte", list(pg.PARTS), default=list(pg.PARTS), format_func=pg.PARTS.get, key="guide_pt")
+    rows = []
+    for name in list(pg.GUIDE) + list(pg.DETECTOR_GUIDE):
+        g = pg.guide(name)
+        d = _fmt(_default(name)) if name in pg.GUIDE else _fmt(core.DET_PARAM_DEFAULTS.get(name, "—"))
+        row = {"Parámetro": g["title"], "Nombre": name, "Nivel": g["level_name"], "Parte": g["part_name"],
+               "Qué hace": g["what"], "Si lo subes": g["up"], "Valor típico": g["typical"], "Por defecto": d}
+        if g["level"] in lv and g["part"] in pt and (not q or q in " ".join(map(str, row.values())).lower()):
+            rows.append(row)
+    st.caption(f"{len(rows)} ajustes")
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=560)
+    with st.expander("Detectores preparados"):
+        for n, p in core.DETECTOR_PROFILES.items():
+            st.markdown(f"**{n}** — {p['desc']}  \n*Coste:* {p['cost']}")
+
+
 def main():
     init_state()
     sidebar()
     st.title("Segmentador de gases")
     st.caption("Panel de control: ajusta el vídeo, la simulación y los cálculos; mira el vídeo con las máscaras real y "
                "detectada superpuestas; exporta resultados e imágenes.")
-    t1, t2, t3, t4, t5 = st.tabs(["🎬 Vídeo", "📊 Resultados", "📦 Exportar", "📈 Benchmark", "⚖️ Comparar umbrales"])
+    t1, t2, t3, t4, t5, t6 = st.tabs(["🎬 Vídeo", "📊 Resultados", "📦 Exportar", "📈 Benchmark", "⚖️ Comparar umbrales", "📖 Guía"])
     with t1:
         tab_video()
     with t2:
@@ -696,6 +827,8 @@ def main():
         tab_benchmark()
     with t5:
         tab_comparar()
+    with t6:
+        tab_guia()
 
 
 main()

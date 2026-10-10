@@ -65,3 +65,24 @@ def test_export_writes_the_files(panel):
     out = Path(panel.out_dir)
     assert {"resumen.json", "serie_temporal.csv", "series.png", "galeria.png", "paquete.zip"} <= {p.name for p in out.iterdir()}
     assert "informe.html" in zipfile.ZipFile(out / "paquete.zip").namelist()
+
+
+def test_levels_hide_parameters_and_summary_tracks_changes(panel):
+    assert panel.boxes["psf_sigma_px"].layout.display == "none" and panel.boxes["netd_k"].layout.display == ""
+    panel.level.value = "E"
+    assert panel.boxes["psf_sigma_px"].layout.display == ""
+    n0 = int(panel.changes_box.get_title(0).split("(")[1].rstrip(")"))
+    panel.W["wind_ms"].value = 1.0
+    assert int(panel.changes_box.get_title(0).split("(")[1].rstrip(")")) == n0 + 1
+    panel.changes_pick.value = "wind_ms"
+    panel._reset_one()
+    assert panel.W["wind_ms"].value == sim.Config().wind_ms
+
+
+def test_scenario_suggests_detector_and_guide_searches(panel):
+    panel.preset.value = "camera_shake"
+    assert panel.D_profile.value == "Cámara con vibración" and panel.D["stabilize"].value is True
+    panel.guide_q.value = "viento"
+    assert "viento" in panel.guide_html.value.lower()
+    panel.reset_all()
+    assert panel.D["stabilize"].value is False and panel.preset.value == "Por defecto"

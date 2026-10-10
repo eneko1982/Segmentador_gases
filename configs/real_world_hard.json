@@ -1,4 +1,6 @@
 {
+ "_title": "Mundo real duro",
+ "_detector": "Robusto + exigir el origen en el tubo",
  "_comment": "Mundo real duro: sol y nube, personas, vibración, obturador, compresión fuerte y píxeles defectuosos.",
  "scene": "hot_plate",
  "t_bg_c": 70.0,

@@ -1,4 +1,6 @@
 {
+ "_title": "Obturador de la cámara cada 3 s",
+ "_detector": "Robusto (varias perturbaciones)",
  "_comment": "Obturador de la cámara cada 3 s: salto del nivel, patrón fijo distinto e imagen congelada.",
  "scene": "hot_plate",
  "t_bg_c": 70.0,

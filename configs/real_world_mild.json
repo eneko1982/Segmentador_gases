@@ -1,4 +1,6 @@
 {
+ "_title": "Mundo real suave",
+ "_detector": "Robusto (varias perturbaciones)",
  "_comment": "Mundo real suave: algo de sol, vibración pequeña, obturador y compresión moderada.",
  "scene": "hot_plate",
  "t_bg_c": 70.0,

@@ -50,6 +50,33 @@ DETECTOR_PROFILES = {
 VIEW_LABEL = exports.VIEW_NAMES
 
 
+def preset_catalog() -> dict:
+    """Escenarios listos para usar: {archivo: {title, comment, detector}} (ordenados por título)."""
+    import json
+
+    import ogi_sim
+    out = {}
+    for p in sorted(ogi_sim.PRESET_DIR.glob("*.json")):
+        data = json.loads(p.read_text())
+        out[p.stem] = dict(title=data.get("_title", p.stem), comment=data.get("_comment", ""),
+                           detector=data.get("_detector", "Estable (por defecto)"))
+    return out
+
+
+def changed_from_default(cfg) -> list[tuple[str, object, object]]:
+    """Parámetros del simulador distintos del valor por defecto: [(nombre, valor, por defecto)]."""
+    import dataclasses
+
+    import ogi_sim
+    base = ogi_sim.Config()
+    return [(f.name, getattr(cfg, f.name), getattr(base, f.name)) for f in dataclasses.fields(cfg)
+            if getattr(cfg, f.name) != getattr(base, f.name)]
+
+
+def changed_detector(p: dict) -> list[tuple[str, object, object]]:
+    return [(k, p[k], DET_PARAM_DEFAULTS[k]) for k in DET_PARAM_DEFAULTS if k != "gas_free_s" and k in p and p[k] != DET_PARAM_DEFAULTS[k]]
+
+
 def run_detection(seq: dict, p: dict):
     """Ejecuta el detector. `p` = parámetros (ver DET_PARAM_DEFAULTS; gas_free_s=None -> 80 % del tiempo sin gas).
 

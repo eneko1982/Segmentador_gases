@@ -342,21 +342,32 @@ def params_text() -> str:
 
 
 def params_markdown() -> str:
+    import param_guide as pg
     out = ["# Parámetros del simulador", "",
            "Generado con `python ogi_sim.py --params-md docs/parametros.md`. No editar a mano: "
            "la fuente es `Config` en `ogi_sim.py`.", "",
            "Se cambian con un preset (`--preset`), un fichero JSON (`--config`) o `--set clave=valor`. "
-           "Los valores por defecto reproducen el simulador original bit a bit.", ""]
+           "Los valores por defecto reproducen el simulador original bit a bit.", "",
+           "**Si no sabes qué hace un parámetro, no lo toques**: los valores por defecto están elegidos para que todo "
+           "funcione. Nivel: **B** básico (lo que normalmente se toca), **A** avanzado, **E** experto. "
+           "El panel muestra solo el nivel que elijas; la guía completa también está en su pestaña «Guía».", ""]
     for g in GROUPS:
-        out += [f"## {g}", "", "| Parámetro | Por defecto | Unidad | Rango | Descripción |", "|---|---|---|---|---|"]
+        out += [f"## {g}", "", "| Parámetro | Nivel | Qué es | Si lo subes | Valor típico | Por defecto | Unidad | Rango |",
+                "|---|---|---|---|---|---|---|---|"]
         for grp, name, default, unit, lo, hi, doc in params_table():
             if grp == g:
                 rng = "" if lo is None and hi is None else f"{_fmt(lo)} … {_fmt(hi)}"
                 if name == "scene":
                     rng = " / ".join(SCENES)
-                out.append(f"| `{name}` | `{_fmt(default)}` | {unit} | {rng} | {doc} |")
+                e = pg.guide(name)
+                out.append(f"| `{name}` — {e['title']} | {e['level']} | {e['what']} | {e['up']} | {e['typical']} | "
+                           f"`{_fmt(default)}` | {unit} | {rng} |")
         out.append("")
-    out += ["## Constantes que siguen fijas en el código", "",
+    out += ["## Opciones del detector", "", "| Opción | Nivel | Qué es | Si la subes | Valor típico |", "|---|---|---|---|---|"]
+    for name in pg.DETECTOR_GUIDE:
+        e = pg.guide(name)
+        out.append(f"| `{name}` — {e['title']} | {e['level']} | {e['what']} | {e['up']} | {e['typical']} |")
+    out += ["", "## Constantes que siguen fijas en el código", "",
             "- Forma de la falta de uniformidad suave de la escena (`lowfreq`, senos de frecuencias fijas).",
             "- Percentiles 1 y 99 con que se elige la ventana automática de 8 bit.",
             "- Rango de frecuencias y fases aleatorias de cada modo de turbulencia (±50 % de `k·rms`).",

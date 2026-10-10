@@ -100,3 +100,24 @@ def test_export_package_contents(case):
     assert b"Informe del detector" in z.read("informe.html")
     arrays = np.load(io.BytesIO(z.read("datos/deteccion.npz")))
     assert arrays["mascara_detectada"].shape == seq["u8"].shape and "mascara_real" in arrays.files
+
+
+def test_every_parameter_has_a_guide_entry():
+    import dataclasses
+
+    import core
+    import ogi_sim
+    import param_guide as pg
+    for f in dataclasses.fields(ogi_sim.Config):
+        e = pg.guide(f.name)
+        assert e["level"] in pg.LEVELS and e["part"] in pg.PARTS and e["what"] and e["title"], f.name
+    for k in core.DET_PARAM_DEFAULTS:
+        assert pg.guide(k)["level"] in pg.LEVELS, k
+    assert set(pg.GUIDE) == {f.name for f in dataclasses.fields(ogi_sim.Config)}
+    assert len(pg.names_at_level("B")) < len(pg.names_at_level("A")) < len(pg.names_at_level("E"))
+
+
+def test_every_scenario_has_title_and_known_detector():
+    import core
+    for name, e in core.preset_catalog().items():
+        assert e["title"] != name and e["detector"] in core.DETECTOR_PROFILES, name

@@ -1,2 +1,10 @@
-{"_comment": "Fuga que se abre a 1 s y se cierra a 4 s; la pluma se disipa después.",
- "scene": "hot_plate", "t_bg_c": 70.0, "duration_s": 10.0, "leak_on_s": 1.0, "leak_off_s": 4.0}
+{
+ "_title": "Fuga que se abre y se cierra",
+ "_detector": "Estable (por defecto)",
+ "_comment": "Fuga que se abre a 1 s y se cierra a 4 s; la pluma se disipa después.",
+ "scene": "hot_plate",
+ "t_bg_c": 70.0,
+ "duration_s": 10.0,
+ "leak_on_s": 1.0,
+ "leak_off_s": 4.0
+}

@@ -1,4 +1,6 @@
 {
+ "_title": "Cámara con vibración",
+ "_detector": "Cámara con vibración",
  "_comment": "Vibración del soporte de la cámara (1,2 px rms).",
  "scene": "hot_plate",
  "t_bg_c": 70.0,

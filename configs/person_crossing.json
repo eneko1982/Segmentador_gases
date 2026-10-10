@@ -1,4 +1,6 @@
 {
+ "_title": "Dos personas cruzan la imagen",
+ "_detector": "Robusto + exigir el origen en el tubo",
  "_comment": "Dos personas cruzan la imagen: objetos calientes que no son gas.",
  "scene": "hot_plate",
  "t_bg_c": 70.0,

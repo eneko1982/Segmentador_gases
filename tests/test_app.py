@@ -28,9 +28,9 @@ def simulated(duration=3.0, leak_on=1.5) -> AppTest:
     return at
 
 
-def test_loads_with_five_tabs_and_all_parameters():
+def test_loads_with_six_tabs_and_all_parameters():
     at = fresh()
-    assert len(at.tabs) == 5
+    assert len(at.tabs) == 6
     sys.path.insert(0, str(Path(APP).parent))
     import ogi_sim
     for f in ogi_sim.Config.__dataclass_fields__:
@@ -80,7 +80,8 @@ def test_changing_the_masks_updates_the_scores():
 def test_detector_can_be_recalculated_with_other_parameters():
     at = simulated()
     uid = at.session_state["det"]["uid"]
-    at.number_input(key="det_zlow").set_value(3.5).run()
+    at.radio(key="level").set_value("A").run()
+    at.number_input(key="det_z_low").set_value(3.5).run()
     at.button(key="btn_det").click().run()
     assert not at.exception and at.session_state["det"]["uid"] == uid + 1
     assert at.session_state["det"]["params"]["z_low"] == 3.5
@@ -103,3 +104,36 @@ def test_export_builds_a_valid_zip():
     assert {"resumen.json", "serie_temporal.csv", "series.png", "galeria.png", "paquete.zip"} <= set(items)
     names = zipfile.ZipFile(io.BytesIO(items["paquete.zip"][0])).namelist()
     assert "informe.html" in names and "datos/deteccion.npz" in names
+
+
+def test_basic_level_hides_expert_parameters_but_keeps_their_values():
+    at = fresh()
+    assert at.radio(key="level").value == "B"
+    at.radio(key="level").set_value("E").run()
+    assert not at.exception
+    assert any(w.key == "p_psf_sigma_px" for w in at.number_input)
+    at.radio(key="level").set_value("B").run()
+    assert not at.exception
+    assert not any(w.key == "p_psf_sigma_px" for w in at.number_input)
+    assert "p_psf_sigma_px" in at.session_state
+
+
+def test_changed_parameters_summary_and_reset():
+    at = fresh()
+    at.slider(key="p_wind_ms").set_value(1.0).run()
+    assert any("Lo que has cambiado (1)" in e.label for e in at.sidebar.expander)
+    at.button(key="rs_wind_ms").click().run()
+    assert at.slider(key="p_wind_ms").value == 0.0 or at.slider(key="p_wind_ms").value == sim_default("wind_ms")
+
+
+def sim_default(name):
+    sys.path.insert(0, str(Path(APP).parent))
+    import ogi_sim
+    return getattr(ogi_sim.Config(), name)
+
+
+def test_scenario_suggests_the_detector_profile():
+    at = fresh()
+    at.selectbox(key="preset").select("camera_shake").run()
+    assert at.selectbox(key="det_profile").value == "Cámara con vibración"
+    assert at.session_state["det_stabilize"] is True
