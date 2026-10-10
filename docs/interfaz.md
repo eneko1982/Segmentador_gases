@@ -2,21 +2,49 @@
 
 Panel de control en Streamlit para ajustar el vídeo, la simulación y los cálculos, ver el vídeo con las máscaras superpuestas y exportar resultados e imágenes, sin la línea de comandos.
 
-## Cómo abrirla en tu ordenador
+## Cómo abrirla en tu ordenador (sin Colab)
 
-Necesitas Python 3.10 o superior.
+Se ejecuta en tu propio equipo y se ve en el navegador en `http://localhost:8501`. Ese tráfico no sale a Internet, así que los cortafuegos corporativos (Zscaler) no intervienen. Solo hace falta **Python 3.10 o superior** y poder instalar los paquetes con `pip`.
 
-```bash
-git clone https://github.com/eneko1982/Segmentador_gases
-cd Segmentador_gases
-git checkout claude/loving-allen-jv3c71        # la rama de trabajo
-python -m venv .venv
-source .venv/bin/activate                       # en Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-streamlit run app.py
+### Windows (ordenador de empresa): pasos
+
+1. **Obtén el proyecto.** Una de estas dos:
+   - Descarga el ZIP: https://github.com/eneko1982/Segmentador_gases/archive/refs/heads/claude/loving-allen-jv3c71.zip (o en la página del repositorio, **Code → Download ZIP**) y descomprímelo en una carpeta tuya, por ejemplo `C:\Users\tu_usuario\Segmentador_gases`.
+   - Si tienes Git: `git clone https://github.com/eneko1982/Segmentador_gases` y `git checkout claude/loving-allen-jv3c71`.
+   - Si tu equipo no llega a GitHub, pide el ZIP por otro medio (por ejemplo, adjunto de correo o carpeta compartida).
+2. **Comprueba que tienes Python.** Abre *Símbolo del sistema* o *PowerShell* y escribe `py -3 --version` (o `python --version`). Si no aparece una versión 3.10 o superior, instálalo desde el **Centro de software** de la empresa (marca «Add Python to PATH» si te lo pregunta) o pídelo a TI.
+3. **Abre el panel con doble clic en `iniciar_panel.bat`.**
+   - La primera vez crea una carpeta `.venv` con un entorno propio e instala las dependencias (unos minutos).
+   - Después abre el panel en el navegador. Si no se abre solo, escribe `http://localhost:8501` en la barra de direcciones.
+   - Si Streamlit te pide un correo electrónico en la ventana, pulsa Intro sin escribir nada.
+   - Si Windows pregunta por el Firewall, puedes pulsar **Cancelar**: el panel funciona igualmente en tu equipo.
+   - Para cerrarlo, cierra la ventana negra.
+
+### Windows: a mano, si el `.bat` no se puede ejecutar
+
+En PowerShell, dentro de la carpeta del proyecto (no hace falta activar el entorno, así se evitan las restricciones de ejecución de scripts):
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Se abre en el navegador (por defecto, http://localhost:8501).
+### Linux / macOS
+
+```bash
+./iniciar_panel.sh        # la primera vez instala las dependencias
+```
+
+### Si algo falla
+
+| Problema | Qué hacer |
+|---|---|
+| `pip` no puede descargar paquetes (error de SSL, de proxy o «no matching distribution») | La red de empresa suele exigir un proxy o un repositorio interno de paquetes. Pregunta a TI cómo configurar `pip` (te darán la dirección del proxy o del índice, que se configura con `pip config set global.index-url ...` o con la opción `--proxy`). No hace falta saltarse nada: es una configuración normal en entornos corporativos. |
+| No se puede instalar Python | Pídelo a TI o por el Centro de software. Si la empresa ya tiene Anaconda/Miniconda aprobado, funciona igual: crea un entorno con Python 3.10+ y ejecuta los mismos comandos. |
+| El puerto 8501 está ocupado | `...python.exe -m streamlit run app.py --server.port 8502` y entra en `http://localhost:8502`. |
+| El antivirus bloquea el `.bat` | Usa los comandos de PowerShell de arriba. |
+| La primera simulación tarda | Es normal con la resolución completa; la vista rápida (½) va unas 4 veces más rápida. |
 
 ## Cómo está organizada
 

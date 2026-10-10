@@ -12,6 +12,7 @@ Simulador de secuencias LWIR de fugas de gas (cámara fija, tubo de venteo) y de
 | `configs/` | Presets en JSON (escenas del benchmark, vídeo largo turbulento, fuga intermitente). |
 | `docs/` | `parametros.md` (referencia de parámetros), `hoja_de_ruta.md` (estado de los pasos), `registro.md` (cambios y decisiones) y `figures/`. |
 | `app.py` | Panel de control en Streamlit. |
+| `iniciar_panel.bat`, `iniciar_panel.sh` | Lanzadores que crean el entorno, instalan las dependencias y abren el panel. |
 | `analysis.py`, `viewer.py`, `exports.py` | Máscaras y métricas, reproductor con máscaras y exportación del panel. |
 | `notebooks/colab.ipynb` | Cuaderno para Google Colab (simular, detectar, comparar, interfaz con deslizadores). |
 | `notebook_ui.py` | Interfaz con deslizadores para cuadernos (sin servidor web). |
@@ -34,6 +35,8 @@ python -m pytest tests
 ```bash
 streamlit run app.py
 ```
+
+En Windows basta con hacer doble clic en `iniciar_panel.bat` (crea un entorno propio y abre el panel en `http://localhost:8501`); en Linux/macOS, `./iniciar_panel.sh`. Pasos y solución de problemas para un ordenador de empresa en [`docs/interfaz.md`](docs/interfaz.md).
 
 Panel de control con ajustes del vídeo, de la simulación y del detector; reproductor con las máscaras real y detectada superpuestas; resultados y exportación (CSV, JSON, imágenes, GIF, informe HTML y ZIP). Guía en [`docs/interfaz.md`](docs/interfaz.md).
 

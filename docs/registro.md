@@ -2,6 +2,13 @@
 
 Entradas de la más reciente a la más antigua.
 
+## Lanzadores y guía para un ordenador de empresa
+
+- `iniciar_panel.bat` (Windows, doble clic) e `iniciar_panel.sh` (Linux/macOS): crean `.venv`, instalan `requirements.txt` la primera vez y abren el panel en `localhost`.
+- Comprobado: instalación desde cero en un entorno virtual limpio (45 s), imports, tests (24 pasan; 1 se omite si falta `node`) y arranque con `iniciar_panel.sh` (HTTP 200). El `.bat` **no** se ha podido ejecutar en Windows (sintaxis revisada, finales de línea CRLF, solo ASCII).
+- `docs/interfaz.md`: pasos para Windows, comandos a mano en PowerShell sin activar el entorno, y tabla de problemas (proxy de pip, Python sin instalar, puerto ocupado, antivirus).
+- Motivo: el cortafuegos corporativo bloquea los túneles de Colab; `localhost` no pasa por él.
+
 ## Panel de control completo (sustituye a la interfaz de pestañas Simulador/Detector)
 
 Motivo: la primera interfaz era un formulario por pestañas; se pidió un panel con ajustes del vídeo, de la simulación y de los cálculos, vídeo visible con las máscaras real y detectada superpuestas, y exportación de resultados e imágenes.
