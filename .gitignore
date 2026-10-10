@@ -6,3 +6,5 @@ bench/
 demo/
 dataset/
 out/
+salida/
+.venv/

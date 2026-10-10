@@ -15,7 +15,8 @@ Simulador de secuencias LWIR de fugas de gas (cámara fija, tubo de venteo) y de
 | `iniciar_panel.bat`, `iniciar_panel.sh` | Lanzadores que crean el entorno, instalan las dependencias y abren el panel. |
 | `analysis.py`, `viewer.py`, `exports.py` | Máscaras y métricas, reproductor con máscaras y exportación del panel. |
 | `notebooks/colab.ipynb` | Cuaderno para Google Colab (simular, detectar, comparar, interfaz con deslizadores). |
-| `notebook_ui.py` | Interfaz con deslizadores para cuadernos (sin servidor web). |
+| `notebook_ui.py` | El panel completo para cuadernos (ipywidgets; sin servidor web). |
+| `core.py` | Lógica común del panel web y del panel del cuaderno. |
 | `.devcontainer/` | Configuración de GitHub Codespaces. |
 | `tests/` | Tests del simulador y de la interfaz (`pip install pytest`). |
 | `docs/figures/` | Figuras de escenas y del detector. |
@@ -40,7 +41,7 @@ En Windows basta con hacer doble clic en `iniciar_panel.bat` (crea un entorno pr
 
 Panel de control con ajustes del vídeo, de la simulación y del detector; reproductor con las máscaras real y detectada superpuestas; resultados y exportación (CSV, JSON, imágenes, GIF, informe HTML y ZIP). Guía en [`docs/interfaz.md`](docs/interfaz.md).
 
-Sin instalar nada: [abrir en GitHub Codespaces](https://codespaces.new/eneko1982/Segmentador_gases?quickstart=1) (interfaz completa) o usar el cuaderno `notebooks/colab.ipynb` en Google Colab (pasos en `docs/interfaz.md`).
+Sin instalar nada: [abrir en GitHub Codespaces](https://codespaces.new/eneko1982/Segmentador_gases?quickstart=1) (interfaz completa) o el cuaderno `notebooks/colab.ipynb` en Google Colab, que trae el **mismo panel completo dentro del cuaderno** (sin servidor ni túnel; pasos en `docs/interfaz.md`).
 
 ## Parametrizar el simulador
 

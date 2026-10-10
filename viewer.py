@@ -108,6 +108,14 @@ def player_html(payload: dict, zoom: int = 520) -> str:
     return _TEMPLATE.replace("__DATA__", data).replace("__ZOOM__", str(int(zoom)))
 
 
+def player_iframe(payload: dict, zoom: int = 520) -> str:
+    """El reproductor dentro de un <iframe srcdoc>: aislado de la página que lo contiene (cuadernos de Jupyter/Colab)."""
+    import html as _html
+    doc = _html.escape(player_html(payload, zoom), quote=True)
+    return (f'<iframe srcdoc="{doc}" style="width:100%;height:{player_height(payload)}px;border:0" '
+            'sandbox="allow-scripts allow-downloads allow-same-origin"></iframe>')
+
+
 _TEMPLATE = r"""<!doctype html>
 <html><head><meta charset="utf-8"><style>
 :root{--fg:#1f2937;--muted:#6b7280;--line:#d1d5db;--panel:#f3f4f6;--accent:#ff4b4b}

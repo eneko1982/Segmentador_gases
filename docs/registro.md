@@ -2,6 +2,17 @@
 
 Entradas de la más reciente a la más antigua.
 
+## Panel completo dentro del cuaderno de Colab
+
+Motivo: el usuario no puede ejecutar nada en local en el ordenador de empresa y el túnel de Streamlit está bloqueado por el cortafuegos; Colab sí funciona.
+
+- `notebook_ui.py` se reescribe: el **mismo panel** que la aplicación web (ajustes de vídeo/cámara, simulación y detector con los 80 parámetros; vídeo con máscaras real y detectada superpuestas; resultados; exportación), con `ipywidgets` y el reproductor HTML/JS incrustado en un `<iframe srcdoc>`. Sin servidor ni túnel.
+- `core.py`: lógica compartida (detector, etiquetas de máscaras, imágenes del reproductor) usada por `app.py` y `notebook_ui.py`.
+- Compatibilidad con ipywidgets 7.7 (Colab) y 8: sin `tooltip=` en el constructor, formatos de lectura fijos por deslizador.
+- Errores encontrados al probarlo en un navegador real y corregidos: un formato de lectura de deslizador inválido (`.4~g`) hacía fallar el arranque del panel; un aviso rojo de IPython sobre `iframe`.
+- Exportación en el cuaderno: los archivos se escriben en `salida/` y, en Colab, cada uno tiene un botón que llama a `files.download`; fuera de Colab, enlaces de descarga.
+- Pruebas: `tests/test_notebook_ui.py` (5), cuaderno completo ejecutado con `nbconvert`, y prueba manual en JupyterLab con Playwright (ajustes, simular, reproducir, activar/desactivar máscaras, cambiar de estilo, descargar el fotograma, exportar). **No** se pudo probar en Colab.
+
 ## Lanzadores y guía para un ordenador de empresa
 
 - `iniciar_panel.bat` (Windows, doble clic) e `iniciar_panel.sh` (Linux/macOS): crean `.venv`, instalan `requirements.txt` la primera vez y abren el panel en `localhost`.

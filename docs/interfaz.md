@@ -110,16 +110,24 @@ Abre https://codespaces.new/eneko1982/Segmentador_gases?quickstart=1 o, en la p�
 - Las cuentas gratuitas tienen una cuota mensual de horas (consúltala en tu configuración de GitHub). Detén o borra el codespace cuando termines, para no gastarla.
 - Es una máquina completa: se pueden relanzar el benchmark y los tests.
 
-### 2. Google Colab (simular, detectar y ver las figuras; la interfaz es opcional)
+### 2. Google Colab (recomendada si no puedes ejecutar nada en tu ordenador)
 
-Cuaderno: `notebooks/colab.ipynb`. Para abrirlo:
+El cuaderno `notebooks/colab.ipynb` trae el **panel completo dentro del propio cuaderno**, sin servidor web ni túnel (los túneles los bloquean los cortafuegos de empresa). Solo necesitas poder abrir Colab en el navegador.
 
-- Entra en https://colab.research.google.com → **Archivo → Abrir cuaderno → pestaña GitHub**, escribe `eneko1982/Segmentador_gases`, elige la rama `claude/loving-allen-jv3c71` y el cuaderno `notebooks/colab.ipynb`. (El enlace directo `colab.research.google.com/github/...` puede fallar con ramas que llevan `/` en el nombre; con una rama `main` sí funciona.)
-- Ejecuta las celdas en orden. Las celdas 1 a 5 instalan el proyecto, simulan una fuga, muestran la secuencia, ejecutan el detector y comparan los umbrales; los parámetros se cambian editando un diccionario.
-- La celda 6 es una **interfaz con deslizadores dentro del propio cuaderno** (preset, gas, caudal, viento, ráfagas, turbulencia, duración, NETD…). No necesita servidor web ni túnel. Es la versión reducida de la interfaz: simula y detecta; no incluye el reproductor con máscaras superpuestas ni la exportación: para eso usa el panel completo (`streamlit run app.py`, Codespaces o Streamlit Cloud).
-- Se comprobó ejecutando el cuaderno completo en un núcleo de Jupyter local. En Colab mismo no se ha podido probar.
+1. Entra en https://colab.research.google.com → **Archivo → Abrir cuaderno → pestaña GitHub**, escribe `eneko1982/Segmentador_gases`, elige la rama `claude/loving-allen-jv3c71` y el cuaderno `notebooks/colab.ipynb`. (El enlace directo `colab.research.google.com/github/...` puede fallar con ramas que llevan `/` en el nombre; con una rama `main` sí funciona.)
+2. **Ejecutar todo** (*Entorno de ejecución → Ejecutar todo*, o Ctrl+F9). La celda 1 instala el proyecto; las celdas 2 a 5 son ejemplos con código; **la celda 6 es el panel**.
+3. En el panel: **⚙️ Ajustes** (los tres bloques) → **Simular y calcular** → **🎬 Vídeo** (reproductor con las máscaras real y detectada superpuestas) → **📊 Resultados** → **📦 Exportar**.
+   - Las máscaras se activan y desactivan con casillas, sin recalcular; hay contorno, relleno y acierto/error.
+   - Al exportar, los archivos quedan en la carpeta `salida/` (panel de archivos de la izquierda de Colab) y aparecen botones de descarga.
+   - Si el reproductor tarda o no carga, elige «Mostrar: 1 de cada 4» y menos vistas. Los vídeos largos o a resolución completa pesan en el navegador.
+4. Si vuelves a abrir el cuaderno más adelante, la celda 1 actualiza el código con `git pull`. Para empezar de cero: *Entorno de ejecución → Desconectar y eliminar el entorno de ejecución*.
 
-> **Redes corporativas.** Los servicios de túnel (`localtunnel`, `ngrok`…) suelen estar bloqueados por los cortafuegos de empresa: por eso el cuaderno ya no los usa. Si tu red también bloquea Codespaces o Streamlit Cloud, las opciones son pedir una revisión a Ciberseguridad (el propio aviso de bloqueo explica cómo) o ejecutar la interfaz en local (`streamlit run app.py`), que no sale a Internet.
+**Qué se ha comprobado y qué no.** El panel se ha ejecutado en JupyterLab (con ipywidgets 8) y se ha construido y simulado con ipywidgets 7.7, la versión que usa Colab; el cuaderno completo se ejecuta sin errores en un núcleo de Jupyter. **No se ha podido probar en Colab mismo.** Si algo falla allí, lo más probable es el reproductor (el tamaño de la salida o las restricciones del navegador) o los botones de descarga; la carpeta `salida/` es la vía alternativa.
+
+![Panel en el cuaderno: vídeo](figures/colab_panel_video.png)
+![Panel en el cuaderno: exportar](figures/colab_panel_exportar.png)
+
+> **Redes corporativas.** Los servicios de túnel (`localtunnel`, `ngrok`…) suelen estar bloqueados por los cortafuegos de empresa, y por eso el cuaderno ya no los usa. Si tu red también bloquea Codespaces o Streamlit Cloud, las opciones son Colab (este panel), pedir una revisión a Ciberseguridad (el propio aviso de bloqueo explica cómo) o ejecutar el panel en un equipo donde se pueda instalar Python.
 
 ### 3. Streamlit Community Cloud (una dirección web fija que compartes con otras personas)
 

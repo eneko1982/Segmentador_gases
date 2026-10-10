@@ -40,7 +40,7 @@ import exports  # noqa: E402
 import ogi_sim as sim  # noqa: E402
 import viewer  # noqa: E402
 from analysis import PRED_KINDS, TRUTH_KINDS, WINDOWS, Analysis  # noqa: E402
-from gas_detect import detect, min_gas_free_s  # noqa: E402
+import core  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_FIELDS = fields(sim.Config)
@@ -250,27 +250,16 @@ def run_detector():
     if seq is None:
         return
     p = det_params()
-    kind = p["input"] if (p["input"] == "u8" or "temp_ck" in seq) else "u8"
-    note = "Esta secuencia no incluye `temp_ck`: se usa el vídeo de 8 bit." if kind != p["input"] else None
-    p["input"] = kind
-    frames = seq["u8"] if kind == "u8" else seq["temp_ck"].astype(np.float32) / 100.0
-    fps = seq_info(seq)["fps"]
-    try:
-        with st.spinner("Calculando el detector…"):
-            res = detect(frames, fps, gas_free_s=p["gas_free_s"], sigma_px=p["sigma_px"], window_s=p["window_s"],
-                         z_low=p["z_low"], z_high=p["z_high"], min_area=p["min_area"])
-    except ValueError as err:
-        need = min_gas_free_s(fps, p["window_s"])
-        s["det_error"] = (f"{err}. El detector necesita un tramo inicial sin gas de al menos {need:.2f} s con estos "
-                          f"parámetros (ahora: {p['gas_free_s']:.2f} s). Haz que la fuga empiece más tarde o acorta el "
-                          "promedio temporal.")
+    with st.spinner("Calculando el detector…"):
+        an, msg, p = core.run_detection(seq, p)
+    if an is None:
+        s["det_error"] = msg
         s.pop("det", None)
         return
-    if note:
-        s["det_error"] = note
+    if msg:
+        s["det_error"] = msg
     else:
         s.pop("det_error", None)
-    an = Analysis(seq, res, kind, p["z_low"])
     s["det"] = dict(an=an, params=p, version=s["seq_version"], uid=s.get("det_uid", 0) + 1)
     s["det_uid"] = s["det"]["uid"]
     for k in ("masks_cache", "sum_cache", "exp_items"):
@@ -379,16 +368,8 @@ def get_masks(det):
 # Pestaña Vídeo
 # ---------------------------------------------------------------------------
 @st.cache_data(show_spinner="Preparando el reproductor…", max_entries=3)
-def cached_payload(key, _seq, _an, _truth, _pred, views, vmax, stride, fps, leak_on_s, learn_s):
-    arrays = {}
-    for v in views:
-        if v == "cam":
-            arrays[VIEW_LABEL[v]] = _seq["u8"]
-        elif v == "real":
-            arrays[VIEW_LABEL[v]] = np.stack([viewer.colorize(c.astype(np.float32) * 1e3, vmax) for c in _seq["contrast"]])
-        else:
-            arrays[VIEW_LABEL[v]] = np.stack([viewer.colorize(e * _an.k * 1e3, vmax) for e in _an.res["estimate"]])
-    return viewer.build_payload(arrays, _truth, _pred, fps, stride, leak_on_s, learn_s)
+def cached_payload(key, _seq, _an, _truth, _pred, views, vmax, stride):
+    return core.build_player_payload(_seq, _an, _truth, _pred, views, vmax, stride)
 
 
 def kpi_row(seq, det):
@@ -458,8 +439,7 @@ def tab_video():
     else:
         truth, pred, an, learn = (seq["mask"] if "mask" in seq else None), None, None, 0.0
         key = (s["seq_version"], "nodet", tuple(views), s["vid_vmax"], stride)
-    payload = cached_payload(key, seq, an, truth, pred, tuple(views), s["vid_vmax"], stride, info["fps"],
-                             info["leak_on_s"], learn)
+    payload = cached_payload(key, seq, an, truth, pred, tuple(views), s["vid_vmax"], stride)
     components.html(viewer.player_html(payload, s["vid_zoom"]), height=viewer.player_height(payload), scrolling=False)
     st.caption("Espacio: reproducir/pausar · ←/→: fotograma anterior/siguiente. Rojo = más caliente, azul = más frío "
                "en los mapas de mK. El botón «Descargar fotograma» guarda las vistas con las máscaras activas.")
