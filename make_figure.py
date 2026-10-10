@@ -16,7 +16,7 @@ import argparse
 import json
 
 import matplotlib
-matplotlib.use("Agg")
+matplotlib.use("Agg")  # no window: the figure is returned or saved
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import ndimage as ndi
@@ -33,17 +33,12 @@ def contour(ax, mask, colour):
     ax.contour(mask.astype(float), levels=[0.5], colors=colour, linewidths=1.4)
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default="detector_same_threshold.png")
-    ap.add_argument("--scene", default="hot_plate_dT5", choices=list(SCENES))
-    ap.add_argument("--flows", type=float, nargs="+", default=[0.003, 0.03, 0.3])
-    ap.add_argument("--seed", type=int, default=0)
-    args = ap.parse_args()
-
-    fig, axes = plt.subplots(4, len(args.flows), figsize=(4.2 * len(args.flows) + 2.2, 13), squeeze=False)
-    for j, flow in enumerate(args.flows):
-        cfg = Config(flow_g_s=flow, leak_on_s=LEAK_ON_S, duration_s=DURATION_S, seed=args.seed, **SCENES[args.scene])
+def build_figure(scene: str = "hot_plate_dT5", flows=(0.003, 0.03, 0.3), seed: int = 0):
+    """Simulate `scene` at each flow rate and return the 4-row comparison figure."""
+    flows = list(flows)
+    fig, axes = plt.subplots(4, len(flows), figsize=(4.2 * len(flows) + 2.2, 13), squeeze=False)
+    for j, flow in enumerate(flows):
+        cfg = Config(flow_g_s=flow, leak_on_s=LEAK_ON_S, duration_s=DURATION_S, seed=seed, **SCENES[scene])
         seq = simulate(cfg)
         meta = json.loads(seq["meta"])
         fps, netd, k = meta["fps"], meta["netd_k"], meta["k_per_dn"]
@@ -83,12 +78,22 @@ def main():
         axes[r, 0].set_ylabel(t, fontsize=10, rotation=0, ha="right", va="center", labelpad=10)
     cax = fig.add_axes([0.93, 0.50, 0.012, 0.20])
     fig.colorbar(im, cax=cax, label="mK")
-    fig.suptitle(f"Detector clásico, escena {args.scene} (ΔT = 5 K): misma frontera para detector y verdad", fontsize=13)
+    fig.suptitle(f"Detector clásico, escena {scene} (ΔT = 5 K): misma frontera para detector y verdad", fontsize=13)
     fig.legend(handles=[plt.Line2D([], [], color=ORANGE, lw=2, label="Detectado por el algoritmo"),
                         plt.Line2D([], [], color=BLUE, lw=2, label="Región real (simulador) con el mismo umbral")],
                loc="lower center", ncol=2, frameon=False)
     fig.tight_layout(rect=(0.08, 0.03, 0.92, 0.96))
-    fig.savefig(args.out, dpi=110)
+    return fig
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--out", default="detector_same_threshold.png")
+    ap.add_argument("--scene", default="hot_plate_dT5", choices=list(SCENES))
+    ap.add_argument("--flows", type=float, nargs="+", default=[0.003, 0.03, 0.3])
+    ap.add_argument("--seed", type=int, default=0)
+    args = ap.parse_args()
+    build_figure(args.scene, args.flows, args.seed).savefig(args.out, dpi=110)
     print("wrote", args.out)
 
 

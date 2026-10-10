@@ -24,7 +24,7 @@ Estado: ✅ hecho · 🔶 en curso · ⬜ pendiente. Se actualiza en cada avance
 | A4 | Programa de captura probado con una cámara simulada | ⬜ |
 | A5 | Protocolo escrito del ensayo en banco | ⬜ |
 | A6 | Sensibilidad a `band_fraction` y `k_abs` | ⬜ |
-| A7 | Prototipo de interfaz (Streamlit/Gradio): simulador, detector y benchmark | ⬜ |
+| A7 | Prototipo de interfaz (Streamlit): simulador, detector, benchmark y comparación de umbrales (`app.py`, `docs/interfaz.md`) | ✅ |
 
 ## Validación con la cámara real
 

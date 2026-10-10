@@ -2,6 +2,17 @@
 
 Entradas de la más reciente a la más antigua.
 
+## Interfaz (paso A7)
+
+- `app.py` (Streamlit) con cuatro pestañas: Simulador, Detector, Benchmark y Comparar umbrales. Guía y capturas en [`interfaz.md`](interfaz.md).
+- Vista previa rápida por defecto (½ resolución, mismo campo de visión) y resolución completa opcional.
+- Solo carga secuencias `.npz` simuladas (decisión del usuario); los vídeos reales se añadirán con el programa de captura.
+- Refactor para reutilizar el código: `gas_detect.preview_frames` (los contornos, ahora separados de la escritura del GIF) y `make_figure.build_figure`.
+- Tests de humo en `tests/test_app.py` (AppTest, sin navegador). Se comprobó además en un navegador real con las cuatro pestañas.
+- Error de la primera versión corregido: el deslizador «La fuga empieza en» cambiaba de rango al mover la duración y Streamlit lo reiniciaba a 0. Ahora los rangos de los deslizadores son fijos y la validación avisa si la fuga empieza después del final.
+- `requirements.txt` incluía solo numpy, scipy y pillow; faltaban matplotlib (ya usado por `make_figure.py`), pandas y streamlit.
+- Pendiente de decidir: dónde se publicará (por ahora, local; pasos de publicación en `interfaz.md`).
+
 ## Simulador totalmente parametrizable
 
 **Qué cambió**

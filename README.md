@@ -11,7 +11,8 @@ Simulador de secuencias LWIR de fugas de gas (cámara fija, tubo de venteo) y de
 | `results/results.csv` | Resultados del benchmark (2 semillas). |
 | `configs/` | Presets en JSON (escenas del benchmark, vídeo largo turbulento, fuga intermitente). |
 | `docs/` | `parametros.md` (referencia de parámetros), `hoja_de_ruta.md` (estado de los pasos), `registro.md` (cambios y decisiones) y `figures/`. |
-| `tests/` | Tests del simulador. |
+| `app.py` | Interfaz en Streamlit. |
+| `tests/` | Tests del simulador y de la interfaz (`pip install pytest`). |
 | `docs/figures/` | Figuras de escenas y del detector. |
 
 ## Uso
@@ -23,6 +24,14 @@ python gas_detect.py demo/seq_0000_hot_plate.npz --preview
 python benchmark.py --out bench
 python -m pytest tests
 ```
+
+## Interfaz
+
+```bash
+streamlit run app.py
+```
+
+Cuatro pestañas (Simulador, Detector, Benchmark, Comparar umbrales). Guía en [`docs/interfaz.md`](docs/interfaz.md).
 
 ## Parametrizar el simulador
 

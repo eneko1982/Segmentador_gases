@@ -175,9 +175,8 @@ def scores(pred: np.ndarray, truth: np.ndarray) -> dict:
                 precision=tp / (tp + fp) if tp + fp else float("nan"))
 
 
-def save_preview(path: Path, frames_u8: np.ndarray, pred: np.ndarray, truth: np.ndarray | None,
-                 fps: float, step: int = 2):
-    """GIF: detected region outlined in orange, reference mask (if any) in blue.
+def preview_frames(frames_u8: np.ndarray, pred: np.ndarray, truth: np.ndarray | None, step: int = 2) -> list:
+    """RGB frames (PIL): detected region outlined in orange, reference mask (if any) in blue.
 
     The reference should use the same threshold as the detector (see main()),
     otherwise the two outlines answer different questions."""
@@ -193,6 +192,13 @@ def save_preview(path: Path, frames_u8: np.ndarray, pred: np.ndarray, truth: np.
             rgb[edge(truth[i])] = (42, 120, 214)
         rgb[edge(pred[i])] = (235, 104, 52)
         out.append(Image.fromarray(rgb))
+    return out
+
+
+def save_preview(path: Path, frames_u8: np.ndarray, pred: np.ndarray, truth: np.ndarray | None,
+                 fps: float, step: int = 2):
+    """GIF of `preview_frames`."""
+    out = preview_frames(frames_u8, pred, truth, step)
     out[0].save(path, save_all=True, append_images=out[1:], duration=int(1000 * step / fps), loop=0)
 
 
