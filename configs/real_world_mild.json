@@ -1,0 +1,15 @@
+{
+ "_comment": "Mundo real suave: algo de sol, vibración pequeña, obturador y compresión moderada.",
+ "scene": "hot_plate",
+ "t_bg_c": 70.0,
+ "duration_s": 10.0,
+ "leak_on_s": 2.5,
+ "flow_g_s": 0.1,
+ "bg_change_k": 0.5,
+ "bg_change_period_s": 30.0,
+ "vibration_px": 0.5,
+ "nuc_period_s": 5.0,
+ "nuc_step_k": 0.05,
+ "compression_quality": 60,
+ "bad_pixel_frac": 0.0005
+}

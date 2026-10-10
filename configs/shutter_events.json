@@ -1,0 +1,12 @@
+{
+ "_comment": "Obturador de la cámara cada 3 s: salto del nivel, patrón fijo distinto e imagen congelada.",
+ "scene": "hot_plate",
+ "t_bg_c": 70.0,
+ "duration_s": 10.0,
+ "leak_on_s": 2.5,
+ "flow_g_s": 0.1,
+ "nuc_period_s": 3.0,
+ "nuc_step_k": 0.1,
+ "nuc_fpn_change": 0.4,
+ "nuc_freeze_frames": 2
+}

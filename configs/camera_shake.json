@@ -1,0 +1,10 @@
+{
+ "_comment": "Vibración del soporte de la cámara (1,2 px rms).",
+ "scene": "hot_plate",
+ "t_bg_c": 70.0,
+ "duration_s": 10.0,
+ "leak_on_s": 2.5,
+ "flow_g_s": 0.1,
+ "vibration_px": 1.2,
+ "vibration_tau_s": 0.3
+}

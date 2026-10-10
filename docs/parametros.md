@@ -102,6 +102,34 @@ Se cambian con un preset (`--preset`), un fichero JSON (`--config`) o `--set cla
 | `turb_lambda_min_m` | `0.02` | m | 0.001 … 10 | Longitud de onda mínima de la turbulencia. |
 | `turb_lambda_max_m` | `0.8` | m | 0.001 … 100 | Longitud de onda máxima de la turbulencia. |
 
+## Perturbaciones del mundo real
+
+| Parámetro | Por defecto | Unidad | Rango | Descripción |
+|---|---|---|---|---|
+| `bg_change_k` | `0` | K | -20 … 20 | Cambio lento del fondo (sol, equipos que se calientan): amplitud. 0 = sin cambio. |
+| `bg_change_period_s` | `20` | s | 0.5 … 3600 | Periodo del cambio del fondo (senoidal) o duración de la rampa. |
+| `bg_change_shape` | `sine` |  |  | Forma del cambio del fondo: sine (sube y baja) o ramp (sube y se queda). |
+| `bg_change_spatial` | `0.5` |  | 0 … 1 | 0 = el fondo cambia igual en toda la imagen; 1 = cambia más en un lado (más difícil). |
+| `cloud_k` | `0` | K | -30 … 30 | Nube o sombra que cruza la escena: cambio de temperatura aparente en su centro (negativo = más fría). 0 = sin nube. |
+| `cloud_size_m` | `0.5` | m | 0.05 … 20 | Tamaño de la nube o sombra. |
+| `cloud_speed_ms` | `0.3` | m/s | 0 … 20 | Velocidad de la nube (hacia la derecha). |
+| `cloud_start_s` | `0` | s | 0 … 3600 | Instante en que la nube empieza a entrar por la izquierda. |
+| `object_count` | `0` |  | 0 … 50 | Objetos que cruzan la imagen y NO son gas (personas, pájaros, vehículos). 0 = ninguno. |
+| `object_size_m` | `0.15` | m | 0.02 … 5 | Tamaño del objeto (ancho; el alto es el doble). |
+| `object_speed_ms` | `0.6` | m/s | 0 … 30 | Velocidad del objeto (de izquierda a derecha). |
+| `object_temp_c` | `32` | °C | -60 … 400 | Temperatura aparente del objeto (opaco, delante del gas). |
+| `object_start_s` | `0.5` | s | 0 … 3600 | Instante en que entra el primer objeto. |
+| `object_row_frac` | `-1` |  | -1 … 1 | Altura por la que cruza el objeto (0 = abajo, 1 = arriba). -1 = al azar. |
+| `object_gap_s` | `1.5` | s | 0 … 3600 | Tiempo entre la entrada de un objeto y el siguiente. |
+| `nuc_period_s` | `0` | s | 0 … 3600 | Cada cuánto se cierra el obturador de la cámara (corrección de no uniformidad). 0 = nunca. |
+| `nuc_step_k` | `0.03` | K | 0 … 1 | Salto aleatorio del nivel global en cada obturación (rms). |
+| `nuc_fpn_change` | `0.3` |  | 0 … 1 | Fracción del patrón fijo que cambia en cada obturación. |
+| `nuc_freeze_frames` | `2` |  | 0 … 50 | Fotogramas repetidos (imagen congelada) mientras actúa el obturador. |
+| `vibration_px` | `0` | px | 0 … 20 | Vibración del soporte: desplazamiento rms de toda la imagen. 0 = sin vibración. |
+| `vibration_tau_s` | `0.3` | s | 0.01 … 60 | Tiempo de correlación de la vibración. |
+| `compression_quality` | `0` |  | 0 … 100 | Compresión de vídeo tipo JPEG sobre el vídeo de 8 bit (1 = muy fuerte, 100 = casi nada). 0 = sin compresión. |
+| `bad_pixel_frac` | `0` |  | 0 … 0.05 | Fracción de píxeles defectuosos (fijos en 0 o en 255). |
+
 ## Salida y ejecución
 
 | Parámetro | Por defecto | Unidad | Rango | Descripción |

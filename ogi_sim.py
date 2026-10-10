@@ -71,7 +71,8 @@ def P(default, unit="", doc="", group="", lo=None, hi=None, choices=None):
     return field(default=default, metadata=dict(unit=unit, doc=doc, group=group, lo=lo, hi=hi, choices=choices))
 
 
-GROUPS = ["Cámara", "Escena", "Gas y fuga", "Chorro y pluma", "Viento y turbulencia", "Salida y ejecución"]
+GROUPS = ["Cámara", "Escena", "Gas y fuga", "Chorro y pluma", "Viento y turbulencia", "Perturbaciones del mundo real",
+          "Salida y ejecución"]
 
 
 @dataclass
@@ -154,6 +155,30 @@ class Config:
     turb_n_modes: int = P(60, "", "Número de modos de Fourier de la turbulencia (más = más detalle).", "Viento y turbulencia", 1, 5000)
     turb_lambda_min_m: float = P(0.02, "m", "Longitud de onda mínima de la turbulencia.", "Viento y turbulencia", 1e-3, 10)
     turb_lambda_max_m: float = P(0.8, "m", "Longitud de onda máxima de la turbulencia.", "Viento y turbulencia", 1e-3, 100)
+    # --- real-world perturbations (all off by default) --------------------
+    bg_change_k: float = P(0.0, "K", "Cambio lento del fondo (sol, equipos que se calientan): amplitud. 0 = sin cambio.", "Perturbaciones del mundo real", -20, 20)
+    bg_change_period_s: float = P(20.0, "s", "Periodo del cambio del fondo (senoidal) o duración de la rampa.", "Perturbaciones del mundo real", 0.5, 3600)
+    bg_change_shape: str = P("sine", "", "Forma del cambio del fondo: sine (sube y baja) o ramp (sube y se queda).", "Perturbaciones del mundo real", choices=("sine", "ramp"))
+    bg_change_spatial: float = P(0.5, "", "0 = el fondo cambia igual en toda la imagen; 1 = cambia más en un lado (más difícil).", "Perturbaciones del mundo real", 0.0, 1.0)
+    cloud_k: float = P(0.0, "K", "Nube o sombra que cruza la escena: cambio de temperatura aparente en su centro (negativo = más fría). 0 = sin nube.", "Perturbaciones del mundo real", -30, 30)
+    cloud_size_m: float = P(0.5, "m", "Tamaño de la nube o sombra.", "Perturbaciones del mundo real", 0.05, 20)
+    cloud_speed_ms: float = P(0.3, "m/s", "Velocidad de la nube (hacia la derecha).", "Perturbaciones del mundo real", 0.0, 20)
+    cloud_start_s: float = P(0.0, "s", "Instante en que la nube empieza a entrar por la izquierda.", "Perturbaciones del mundo real", 0.0, 3600)
+    object_count: int = P(0, "", "Objetos que cruzan la imagen y NO son gas (personas, pájaros, vehículos). 0 = ninguno.", "Perturbaciones del mundo real", 0, 50)
+    object_size_m: float = P(0.15, "m", "Tamaño del objeto (ancho; el alto es el doble).", "Perturbaciones del mundo real", 0.02, 5)
+    object_speed_ms: float = P(0.6, "m/s", "Velocidad del objeto (de izquierda a derecha).", "Perturbaciones del mundo real", 0.0, 30)
+    object_temp_c: float = P(32.0, "°C", "Temperatura aparente del objeto (opaco, delante del gas).", "Perturbaciones del mundo real", -60, 400)
+    object_start_s: float = P(0.5, "s", "Instante en que entra el primer objeto.", "Perturbaciones del mundo real", 0.0, 3600)
+    object_row_frac: float = P(-1.0, "", "Altura por la que cruza el objeto (0 = abajo, 1 = arriba). -1 = al azar.", "Perturbaciones del mundo real", -1.0, 1.0)
+    object_gap_s: float = P(1.5, "s", "Tiempo entre la entrada de un objeto y el siguiente.", "Perturbaciones del mundo real", 0.0, 3600)
+    nuc_period_s: float = P(0.0, "s", "Cada cuánto se cierra el obturador de la cámara (corrección de no uniformidad). 0 = nunca.", "Perturbaciones del mundo real", 0.0, 3600)
+    nuc_step_k: float = P(0.03, "K", "Salto aleatorio del nivel global en cada obturación (rms).", "Perturbaciones del mundo real", 0.0, 1.0)
+    nuc_fpn_change: float = P(0.3, "", "Fracción del patrón fijo que cambia en cada obturación.", "Perturbaciones del mundo real", 0.0, 1.0)
+    nuc_freeze_frames: int = P(2, "", "Fotogramas repetidos (imagen congelada) mientras actúa el obturador.", "Perturbaciones del mundo real", 0, 50)
+    vibration_px: float = P(0.0, "px", "Vibración del soporte: desplazamiento rms de toda la imagen. 0 = sin vibración.", "Perturbaciones del mundo real", 0.0, 20)
+    vibration_tau_s: float = P(0.3, "s", "Tiempo de correlación de la vibración.", "Perturbaciones del mundo real", 0.01, 60)
+    compression_quality: int = P(0, "", "Compresión de vídeo tipo JPEG sobre el vídeo de 8 bit (1 = muy fuerte, 100 = casi nada). 0 = sin compresión.", "Perturbaciones del mundo real", 0, 100)
+    bad_pixel_frac: float = P(0.0, "", "Fracción de píxeles defectuosos (fijos en 0 o en 255).", "Perturbaciones del mundo real", 0.0, 0.05)
     # --- run --------------------------------------------------------------
     duration_s: float = P(4.0, "s", "Duración de la secuencia.", "Salida y ejecución", 0.1, 3600)
     mask_thresh_k: float = P(0.035, "K", "La máscara de verdad marca |contraste sin ruido| mayor que esto.", "Salida y ejecución", 0.0, 10)
@@ -221,8 +246,10 @@ def validate(cfg: Config) -> Config:
         lo, hi = f.metadata.get("lo"), f.metadata.get("hi")
         if lo is not None and v < lo or hi is not None and v > hi:
             bad.append(f"{name}={v} outside [{lo}, {hi}]")
-    if cfg.scene not in SCENES:
-        bad.append(f"scene={cfg.scene!r} must be one of {SCENES}")
+    for name, f in _FIELDS.items():
+        choices = f.metadata.get("choices")
+        if choices and getattr(cfg, name) not in choices:
+            bad.append(f"{name}={getattr(cfg, name)!r} must be one of {tuple(choices)}")
     if cfg.gas not in GASES and (cfg.gas_molar_mass_kg_mol is None or cfg.gas_density_kg_m3 is None):
         bad.append(f"gas={cfg.gas!r} is not in {list(GASES)}: give gas_molar_mass_kg_mol and gas_density_kg_m3")
     if cfg.leak_off_s is not None and cfg.leak_off_s <= cfg.leak_on_s:
@@ -544,75 +571,319 @@ def gaussian_blur(img: np.ndarray, sigma: float) -> np.ndarray:
 # --------------------------------------------------------------------------
 # Main entry point
 # --------------------------------------------------------------------------
+# --------------------------------------------------------------------------
+# Real-world perturbations: everything that makes a video look real besides the gas
+# --------------------------------------------------------------------------
+_JPEG_Q = np.array([[16, 11, 10, 16, 24, 40, 51, 61], [12, 12, 14, 19, 26, 58, 60, 55],
+                    [14, 13, 16, 24, 40, 57, 69, 56], [14, 17, 22, 29, 51, 87, 80, 62],
+                    [18, 22, 37, 56, 68, 109, 103, 77], [24, 35, 55, 64, 81, 104, 113, 92],
+                    [49, 64, 78, 87, 103, 121, 120, 101], [72, 92, 95, 98, 112, 100, 103, 99]], np.float64)
+
+
+def jpeg_like(frame: np.ndarray, quality: int) -> np.ndarray:
+    """Block-DCT quantisation of an 8-bit frame (JPEG-like): approximates the loss of a compressed video stream.
+
+    quality 1 = very strong, 100 = almost lossless. Real H.264/H.265 also uses motion prediction; this keeps the
+    main effect (small contrasts and noise flattened, 8x8 block artefacts)."""
+    from scipy import fft
+    h, w = frame.shape
+    scale = 5000.0 / quality if quality < 50 else 200.0 - 2.0 * quality
+    q = np.clip(np.floor((_JPEG_Q * scale + 50.0) / 100.0), 1, 255)
+    ph, pw = (-h) % 8, (-w) % 8
+    img = np.pad(frame.astype(np.float64) - 128.0, ((0, ph), (0, pw)), mode="edge")
+    blocks = img.reshape((h + ph) // 8, 8, (w + pw) // 8, 8).transpose(0, 2, 1, 3)
+    coef = np.round(fft.dctn(blocks, axes=(2, 3), norm="ortho") / q) * q
+    out = fft.idctn(coef, axes=(2, 3), norm="ortho").transpose(0, 2, 1, 3).reshape(h + ph, w + pw)[:h, :w] + 128.0
+    return np.clip(np.round(out), 0, 255).astype(np.uint8)
+
+
+class Perturbations:
+    """Slow background change, moving cloud, non-gas objects, shutter events, vibration and bad pixels.
+
+    It has its own random stream, so switching perturbations on never changes the gas or the camera noise."""
+
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+        h, w = cfg.height, cfg.width
+        self.rng = np.random.default_rng([cfg.seed, 20260101])
+        xm = (np.arange(w) + 0.5) * cfg.m_per_px
+        ym = (h - (np.arange(h) + 0.5)) * cfg.m_per_px                    # metres, y up
+        self.X, self.Y = np.meshgrid(xm, ym)
+        self.fov_h = h * cfg.m_per_px
+        yy, xx = np.mgrid[0:h, 0:w].astype(np.float64)
+        p = np.clip(0.5 + 0.8 * (xx / w - 0.5) + 0.3 * (yy / h - 0.5), 0.0, 1.0)
+        self.weight = (1.0 - cfg.bg_change_spatial) + cfg.bg_change_spatial * 2.0 * p
+        self.has_bg = cfg.bg_change_k != 0.0
+        self.has_cloud = cfg.cloud_k != 0.0
+        self.has_objects = cfg.object_count > 0
+        self.has_nuc = cfg.nuc_period_s > 0.0
+        self.has_vib = cfg.vibration_px > 0.0
+        self.compress = cfg.compression_quality > 0
+        self.dynamic_bg = self.has_bg or self.has_cloud
+        self.nuisance = self.has_cloud or self.has_objects
+        self.cloud_y = float(self.rng.uniform(0.25, 0.65)) * self.fov_h
+        rows = self.rng.uniform(0.12, 0.75, max(cfg.object_count, 0))
+        self.object_y = (np.full(len(rows), cfg.object_row_frac) if cfg.object_row_frac >= 0 else rows) * self.fov_h
+        self.nuc_every = max(1, int(round(cfg.nuc_period_s * cfg.fps))) if self.has_nuc else 0
+        self.nuc_frames: list[int] = []
+        self.offset = 0.0
+        self.hold = 0
+        self.vel = np.zeros(2)
+        self.shift = np.zeros(2)
+        n_bad = int(round(cfg.bad_pixel_frac * h * w))
+        idx = self.rng.choice(h * w, size=n_bad, replace=False) if n_bad else np.zeros(0, int)
+        self.bad_idx, self.bad_hot = idx, self.rng.random(n_bad) < 0.5
+
+    # -- scene ------------------------------------------------------------------
+    def cloud_field(self, t: float):
+        c = self.cfg
+        if not self.has_cloud:
+            return None
+        sigma = c.cloud_size_m / 2.0
+        cx = -2.0 * c.cloud_size_m + c.cloud_speed_ms * max(t - c.cloud_start_s, 0.0)
+        return c.cloud_k * np.exp(-0.5 * (((self.X - cx) / sigma) ** 2 + ((self.Y - self.cloud_y) / sigma) ** 2))
+
+    def field(self, t: float):
+        """Temperature change (K) of the background at time t, or None when there is none."""
+        c = self.cfg
+        out = None
+        if self.has_bg:
+            f = np.sin(2 * np.pi * t / c.bg_change_period_s) if c.bg_change_shape == "sine" else min(t / c.bg_change_period_s, 1.0)
+            out = c.bg_change_k * f * self.weight
+        cloud = self.cloud_field(t)
+        if cloud is not None:
+            out = cloud if out is None else out + cloud
+        return out
+
+    def object_mask(self, t: float):
+        c = self.cfg
+        if not self.has_objects:
+            return None
+        mask = None
+        for k in range(c.object_count):
+            start = c.object_start_s + k * c.object_gap_s
+            if t < start:
+                continue
+            cx = -c.object_size_m + c.object_speed_ms * (t - start)
+            m = ((self.X - cx) / (c.object_size_m / 2.0)) ** 2 + ((self.Y - self.object_y[k]) / c.object_size_m) ** 2 < 1.0
+            mask = m if mask is None else (mask | m)
+        return mask
+
+    # -- camera -----------------------------------------------------------------
+    def step_vibration(self, dt: float):
+        c = self.cfg
+        self.vel += -self.vel / c.vibration_tau_s * dt + c.vibration_px * np.sqrt(2.0 * dt / c.vibration_tau_s) * self.rng.standard_normal(2)
+        self.shift = self.vel.copy()
+        return self.shift
+
+    def shift_image(self, a: np.ndarray) -> np.ndarray:
+        from scipy import ndimage as ndi
+        return ndi.shift(a, (self.shift[0], self.shift[1]), order=1, mode="nearest")
+
+    def nuc_event(self, i: int) -> bool:
+        return self.has_nuc and i > 0 and i % self.nuc_every == 0
+
+    def apply_nuc(self, i: int, fpn: np.ndarray) -> np.ndarray:
+        c = self.cfg
+        self.nuc_frames.append(i)
+        self.offset += float(self.rng.normal(0.0, c.nuc_step_k))
+        self.hold = c.nuc_freeze_frames
+        if c.nuc_fpn_change > 0:
+            new = c.fpn_k * self.rng.standard_normal(fpn.shape) + c.col_noise_k * self.rng.standard_normal((1, fpn.shape[1]))
+            fpn = np.sqrt(1.0 - c.nuc_fpn_change) * fpn + np.sqrt(c.nuc_fpn_change) * new
+        return fpn
+
+    def damage(self, u8: np.ndarray, temp_ck: np.ndarray | None):
+        """Compression and bad pixels, applied to the finished frames."""
+        c = self.cfg
+        if self.compress:
+            u8 = jpeg_like(u8, c.compression_quality)
+        if len(self.bad_idx):
+            flat = u8.reshape(-1)
+            flat[self.bad_idx] = np.where(self.bad_hot, 255, 0).astype(np.uint8)
+            if temp_ck is not None:
+                tflat = temp_ck.reshape(-1)
+                tflat[self.bad_idx] = np.where(self.bad_hot, 65535, 0).astype(np.uint16)
+        return u8, temp_ck
+
+
+# --------------------------------------------------------------------------
+# Main entry point
+# --------------------------------------------------------------------------
+class Simulation:
+    """One simulated sequence, produced frame by frame (so long videos never have to fit in memory)."""
+
+    def __init__(self, cfg: Config):
+        validate(cfg)
+        self.cfg = cfg
+        self.n_frames = int(round(cfg.duration_s * cfg.fps))
+        self.rng = np.random.default_rng(cfg.seed)
+        self.band = Band(cfg.band_lo_um, cfg.band_hi_um)
+        self.scene_c, tip_m = build_scene(cfg)
+        self.plume = Plume(cfg, tip_m, self.rng)
+        self.pert = Perturbations(cfg)
+        h, w = cfg.height, cfg.width
+        self.l_bg = self.band.radiance(self.scene_c)
+        t_gas_c = cfg.t_amb_c if cfg.t_exit_c is None else cfg.t_exit_c
+        self.l_gas = float(self.band.radiance(t_gas_c))
+        self.t_bg_cam = self.band.temperature_c(gaussian_blur(self.l_bg, cfg.psf_sigma_px))
+        t_bg_cam = self.t_bg_cam
+
+        # fixed 8-bit window (manual level/span, as with AGC switched off)
+        # The window is chosen once from the gas-free background and then frozen.
+        if cfg.scene == "hot_plate":                     # gas darkens a hot background
+            ref = t_bg_cam[t_bg_cam > cfg.t_bg_c - cfg.hot_ref_margin_k]
+            p_lo, p_hi = np.percentile(ref, [1, 99])
+            auto_span = (p_hi - p_lo) + cfg.auto_span_margin_hot_k
+            auto_level = p_hi + cfg.auto_headroom_k - auto_span / 2      # headroom below for the gas
+        else:                                            # gas brightens a cold sky
+            ref = t_bg_cam[t_bg_cam < cfg.t_amb_c - cfg.cold_ref_margin_k]
+            p_lo, p_hi = np.percentile(ref, [1, 99])
+            auto_span = (p_hi - p_lo) + cfg.auto_span_margin_cold_k
+            auto_level = p_lo - cfg.auto_headroom_k + auto_span / 2      # headroom above for the gas
+        self.span = float(auto_span if cfg.span_c is None else cfg.span_c)
+        self.level = float(auto_level if cfg.level_c is None else cfg.level_c)
+        self.lo = self.level - self.span / 2
+
+        self.fpn = cfg.fpn_k * self.rng.standard_normal((h, w)) + cfg.col_noise_k * self.rng.standard_normal((1, w))
+        self.drift_phase = self.rng.uniform(0, 2 * np.pi)
+        self.lag = 1.0 - np.exp(-(1.0 / cfg.fps) / max(cfg.detector_tau_s, 1e-6))
+        self.finished = False
+
+    def layout(self) -> dict:
+        """name -> (shape of one frame, dtype) of every array the sequence contains."""
+        c, p = self.cfg, self.pert
+        shape = (c.height, c.width)
+        lay = dict(u8=(shape, np.uint8), contrast=(shape, np.float16), mask=(shape, bool))
+        if c.store_temp:
+            lay["temp_ck"] = (shape, np.uint16)
+        if c.store_cl:
+            lay["cl"] = (shape, np.float32)
+        if p.has_vib:
+            lay["shift_px"] = ((2,), np.float32)
+        if p.nuisance:
+            lay["nuisance"] = (shape, bool)
+        return lay
+
+    def frames(self):
+        """Generator: one dict of per-frame arrays at a time."""
+        cfg, band, pert = self.cfg, self.band, self.pert
+        h, w = cfg.height, cfg.width
+        state = self.t_bg_cam.copy()
+        fpn, last = self.fpn, None
+        l_bg, l_gas, t_bg_cam = self.l_bg, self.l_gas, self.t_bg_cam
+        l_obj = float(band.radiance(cfg.object_temp_c)) if pert.has_objects else None
+        dt = 1.0 / cfg.fps
+        for i in range(self.n_frames):
+            self.plume.advance(dt)
+            cl = self.plume.column_density()
+            t = i * dt
+            if pert.dynamic_bg:
+                scene_t = self.scene_c + pert.field(t)
+                l_bg_t = band.radiance(scene_t)
+                t_bg_t = band.temperature_c(gaussian_blur(l_bg_t, cfg.psf_sigma_px))
+            else:
+                l_bg_t, t_bg_t = l_bg, t_bg_cam
+            tau = 1.0 - cfg.band_fraction * (1.0 - np.exp(-cfg.k_abs * cl))
+            l_scene = tau * l_bg_t + (1.0 - tau) * l_gas
+            t_clean = band.temperature_c(gaussian_blur(l_scene, cfg.psf_sigma_px))
+            contrast = t_clean - t_bg_t                                  # change caused by the gas only
+            nuis = None
+            if pert.nuisance:
+                om = pert.object_mask(t)
+                cloud = pert.cloud_field(t)
+                nuis = np.zeros((h, w), bool)
+                if om is not None:
+                    nuis |= om
+                    t_clean = band.temperature_c(gaussian_blur(np.where(om, l_obj, l_scene), cfg.psf_sigma_px))
+                if cloud is not None:
+                    nuis |= np.abs(cloud) > cfg.mask_thresh_k
+            if pert.has_vib:
+                pert.step_vibration(dt)
+                t_clean, contrast = pert.shift_image(t_clean), pert.shift_image(contrast)
+                cl = pert.shift_image(cl)
+                if nuis is not None:
+                    nuis = pert.shift_image(nuis.astype(np.float32)) > 0.5
+            if pert.nuc_event(i):
+                fpn = pert.apply_nuc(i, fpn)
+
+            state += self.lag * (t_clean - state)            # detector thermal lag
+            drift = cfg.drift_k * np.sin(2 * np.pi * i / cfg.fps / cfg.drift_period_s + self.drift_phase)
+            t_meas = state + fpn + drift
+            if pert.has_nuc:
+                t_meas = t_meas + pert.offset
+            t_meas = t_meas + cfg.netd_k * self.rng.standard_normal((h, w))
+
+            if pert.hold > 0 and last is not None:           # shutter closed: the image freezes
+                pert.hold -= 1
+                yield {k: v.copy() for k, v in last.items()}
+                continue
+            u8 = np.clip((t_meas - self.lo) / self.span * 255.0 + 0.5, 0, 255).astype(np.uint8)
+            temp = np.clip((t_meas + 273.15) * 100.0 + 0.5, 0, 65535).astype(np.uint16) if cfg.store_temp else None
+            if pert.compress or len(pert.bad_idx):
+                u8, temp = pert.damage(u8, temp)
+            frame = dict(u8=u8, contrast=contrast.astype(np.float16), mask=np.abs(contrast) > cfg.mask_thresh_k)
+            if temp is not None:
+                frame["temp_ck"] = temp
+            if cfg.store_cl:
+                frame["cl"] = np.asarray(cl, np.float32)
+            if pert.has_vib:
+                frame["shift_px"] = pert.shift.astype(np.float32)
+            if nuis is not None:
+                frame["nuisance"] = nuis
+            last = frame
+            yield frame
+        self.finished = True
+
+    def meta(self) -> str:
+        meta = asdict(self.cfg)
+        meta.update(level_c=self.level, span_c=self.span, k_per_dn=self.span / 255.0,
+                    emitted_g=self.plume.emitted_kg * 1e3, ppm_m_per_kg_m2=self.plume.kg_to_ppm_m,
+                    nuc_frames=list(self.pert.nuc_frames), n_frames=self.n_frames)
+        return json.dumps(meta)
+
+
 def simulate(cfg: Config) -> dict:
-    validate(cfg)
-    rng = np.random.default_rng(cfg.seed)
-    band = Band(cfg.band_lo_um, cfg.band_hi_um)
-    scene_c, tip_m = build_scene(cfg)
-    plume = Plume(cfg, tip_m, rng)
-
-    n_frames = int(round(cfg.duration_s * cfg.fps))
-    h, w = cfg.height, cfg.width
-    l_bg = band.radiance(scene_c)
-    t_gas_c = cfg.t_amb_c if cfg.t_exit_c is None else cfg.t_exit_c
-    l_gas = float(band.radiance(t_gas_c))
-    t_bg_cam = band.temperature_c(gaussian_blur(l_bg, cfg.psf_sigma_px))
-
-    # fixed 8-bit window (manual level/span, as with AGC switched off)
-    # The window is chosen once from the gas-free background and then frozen.
-    if cfg.scene == "hot_plate":                     # gas darkens a hot background
-        ref = t_bg_cam[t_bg_cam > cfg.t_bg_c - cfg.hot_ref_margin_k]
-        p_lo, p_hi = np.percentile(ref, [1, 99])
-        auto_span = (p_hi - p_lo) + cfg.auto_span_margin_hot_k
-        auto_level = p_hi + cfg.auto_headroom_k - auto_span / 2      # headroom below for the gas
-    else:                                            # gas brightens a cold sky
-        ref = t_bg_cam[t_bg_cam < cfg.t_amb_c - cfg.cold_ref_margin_k]
-        p_lo, p_hi = np.percentile(ref, [1, 99])
-        auto_span = (p_hi - p_lo) + cfg.auto_span_margin_cold_k
-        auto_level = p_lo - cfg.auto_headroom_k + auto_span / 2      # headroom above for the gas
-    span = float(auto_span if cfg.span_c is None else cfg.span_c)
-    level = float(auto_level if cfg.level_c is None else cfg.level_c)
-    lo = level - span / 2
-
-    fpn = cfg.fpn_k * rng.standard_normal((h, w)) + cfg.col_noise_k * rng.standard_normal((1, w))
-    drift_phase = rng.uniform(0, 2 * np.pi)
-    lag = 1.0 - np.exp(-(1.0 / cfg.fps) / max(cfg.detector_tau_s, 1e-6))
-
-    out = dict(
-        u8=np.zeros((n_frames, h, w), np.uint8),
-        contrast=np.zeros((n_frames, h, w), np.float16),
-        mask=np.zeros((n_frames, h, w), bool),
-    )
-    if cfg.store_temp:
-        out["temp_ck"] = np.zeros((n_frames, h, w), np.uint16)
-    if cfg.store_cl:
-        out["cl"] = np.zeros((n_frames, h, w), np.float32)
-    state = t_bg_cam.copy()
-    for i in range(n_frames):
-        plume.advance(1.0 / cfg.fps)
-        cl = plume.column_density()
-        tau = 1.0 - cfg.band_fraction * (1.0 - np.exp(-cfg.k_abs * cl))
-        l_scene = tau * l_bg + (1.0 - tau) * l_gas
-        t_clean = band.temperature_c(gaussian_blur(l_scene, cfg.psf_sigma_px))
-        contrast = t_clean - t_bg_cam
-
-        state += lag * (t_clean - state)             # detector thermal lag
-        drift = cfg.drift_k * np.sin(2 * np.pi * i / cfg.fps / cfg.drift_period_s + drift_phase)
-        t_meas = state + fpn + drift + cfg.netd_k * rng.standard_normal((h, w))
-
-        out["u8"][i] = np.clip((t_meas - lo) / span * 255.0 + 0.5, 0, 255).astype(np.uint8)
-        if cfg.store_temp:
-            out["temp_ck"][i] = np.clip((t_meas + 273.15) * 100.0 + 0.5, 0, 65535).astype(np.uint16)
-        if cfg.store_cl:
-            out["cl"][i] = cl
-        out["contrast"][i] = contrast
-        out["mask"][i] = np.abs(contrast) > cfg.mask_thresh_k
-
-    meta = asdict(cfg)
-    meta.update(level_c=level, span_c=span, k_per_dn=span / 255.0, emitted_g=plume.emitted_kg * 1e3,
-                ppm_m_per_kg_m2=plume.kg_to_ppm_m)
-    out["meta"] = json.dumps(meta)
+    """The whole sequence in memory (see `simulate_to_dir` for videos that do not fit)."""
+    sim_ = Simulation(cfg)
+    out = {name: np.zeros((sim_.n_frames, *shape), dtype) for name, (shape, dtype) in sim_.layout().items()}
+    for i, frame in enumerate(sim_.frames()):
+        for name, arr in frame.items():
+            out[name][i] = arr
+    out["meta"] = sim_.meta()
     return out
+
+
+def simulate_to_dir(cfg: Config, path, flush_every: int = 250) -> Path:
+    """Write the sequence to a folder frame by frame (one .npy per array, read later as memory maps).
+
+    Memory use does not depend on the duration. Layout: <path>/u8.npy, contrast.npy, mask.npy, ... and meta.json."""
+    sim_ = Simulation(cfg)
+    path = Path(path)
+    path.mkdir(parents=True, exist_ok=True)
+    maps = {name: np.lib.format.open_memmap(path / f"{name}.npy", mode="w+", dtype=dtype, shape=(sim_.n_frames, *shape))
+            for name, (shape, dtype) in sim_.layout().items()}
+    for i, frame in enumerate(sim_.frames()):
+        for name, arr in frame.items():
+            maps[name][i] = arr
+        if (i + 1) % flush_every == 0:
+            for m in maps.values():
+                m.flush()
+    for m in maps.values():
+        m.flush()
+    (path / "meta.json").write_text(sim_.meta())
+    return path
+
+
+def load_sequence(path) -> dict:
+    """Read a sequence written by `save_sequence` (.npz) or `simulate_to_dir` (folder, as memory maps)."""
+    path = Path(path)
+    if path.is_dir():
+        seq = {p.stem: np.load(p, mmap_mode="r") for p in sorted(path.glob("*.npy"))}
+        seq["meta"] = (path / "meta.json").read_text()
+        return seq
+    data = np.load(path, allow_pickle=False)
+    return {k: data[k] for k in data.files}
 
 
 # Domain randomisation: (name, low, high, "uniform" | "log"), drawn in this order.
@@ -633,8 +904,34 @@ RANDOM_RANGES = [
 RANDOM_T_BG = {"hot_plate": (40, 90), "cold_sky": (-45, -10)}
 
 
-def random_config(rng: np.random.Generator, seed: int) -> Config:
-    """Domain randomisation over release, weather, scene and camera noise."""
+def _random_perturbations(rng: np.random.Generator) -> dict:
+    """Each real-world perturbation is switched on with probability 0.4 (drawn after the base configuration)."""
+    out = {}
+    if rng.random() < 0.4:
+        out.update(bg_change_k=float(rng.uniform(0.3, 2.0) * rng.choice([-1, 1])), bg_change_period_s=float(rng.uniform(8, 40)),
+                   bg_change_spatial=float(rng.uniform(0, 1)))
+    if rng.random() < 0.4:
+        out.update(cloud_k=float(rng.uniform(0.4, 1.5) * rng.choice([-1, 1])), cloud_size_m=float(rng.uniform(0.3, 0.9)),
+                   cloud_speed_ms=float(rng.uniform(0.08, 0.3)))
+    if rng.random() < 0.4:
+        out.update(object_count=int(rng.integers(1, 4)), object_size_m=float(rng.uniform(0.08, 0.2)),
+                   object_speed_ms=float(rng.uniform(0.15, 0.5)), object_start_s=float(rng.uniform(1.5, 3.0)))
+    if rng.random() < 0.4:
+        out.update(nuc_period_s=float(rng.uniform(2, 6)), nuc_step_k=float(rng.uniform(0.02, 0.15)))
+    if rng.random() < 0.4:
+        out.update(vibration_px=float(rng.uniform(0.3, 2.0)))
+    if rng.random() < 0.4:
+        out.update(compression_quality=int(rng.integers(15, 80)))
+    if rng.random() < 0.3:
+        out.update(bad_pixel_frac=float(rng.uniform(0.0002, 0.003)))
+    return out
+
+
+def random_config(rng: np.random.Generator, seed: int, perturbations: bool = False) -> Config:
+    """Domain randomisation over release, weather, scene and camera noise.
+
+    With `perturbations=True` real-world perturbations are added (extra draws after the base ones, so the base
+    configuration of a given seed is the same with and without them)."""
     scene = str(rng.choice(list(SCENES)))
     gas = None
     values = {}
@@ -648,7 +945,8 @@ def random_config(rng: np.random.Generator, seed: int) -> Config:
             values[name] = float(np.exp(rng.uniform(np.log(lo), np.log(hi))))
         else:
             values[name] = float(rng.uniform(lo, hi))
-    return Config(scene=scene, gas=gas, seed=seed, **values)
+    extra = _random_perturbations(rng) if perturbations else {}
+    return Config(scene=scene, gas=gas, seed=seed, **values, **extra)
 
 
 def save_sequence(path: Path, seq: dict):
@@ -680,6 +978,7 @@ def main():
     ap.add_argument("--wind", type=float, default=None, help="m/s")
     ap.add_argument("--duration", type=float, default=None, help="s")
     ap.add_argument("--preview", action="store_true", help="also write an animated GIF")
+    ap.add_argument("--perturbations", action="store_true", help="with --n: add random real-world perturbations")
     ap.add_argument("--preset", default=None, help="name of a file in configs/ (without .json)")
     ap.add_argument("--config", default=None, help="JSON file with parameter overrides")
     ap.add_argument("--set", action="append", metavar="KEY=VALUE", help="override any parameter (repeatable)")
@@ -713,7 +1012,7 @@ def main():
         if args.n:
             rng = np.random.default_rng(args.seed or 0)
             base = args.seed or 0
-            configs = [apply_overrides(random_config(rng, base * 100000 + i), over) for i in range(args.n)]
+            configs = [apply_overrides(random_config(rng, base * 100000 + i, args.perturbations), over) for i in range(args.n)]
         else:
             if over.get("scene", "hot_plate") == "cold_sky" and "t_bg_c" not in over:
                 over["t_bg_c"] = -25.0                              # sky apparent temperature

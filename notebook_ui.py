@@ -165,10 +165,12 @@ class Panel:
         h = lambda t: w.HTML(f'<h4 style="margin:6px 0">{t}</h4>')                     # noqa: E731
         video = w.VBox([h("1 · Vídeo y cámara")] + [self._make(by[n]) for n in VIDEO_MAIN] +
                        [self._more(VIDEO_GROUPS, VIDEO_MAIN, "Más parámetros de vídeo y cámara")],
-                       layout=w.Layout(width="33%"))
+                       layout=w.Layout(width="25%"))
         simul = w.VBox([h("2 · Simulación del gas")] + [self._make(by[n]) for n in SIM_MAIN] +
                        [self._more(SIM_GROUPS, SIM_MAIN, "Más parámetros de la simulación del gas")],
-                       layout=w.Layout(width="33%"))
+                       layout=w.Layout(width="25%"))
+        pert = w.VBox([h("Perturbaciones del mundo real")] +
+                      [self._more(["Perturbaciones del mundo real"], [], "Todas las perturbaciones")], layout=w.Layout(width="25%"))
         self.D = dict(
             input=_set_tip(w.Dropdown(options=["u8", "temp"], value="u8", description="Entrada", style=STYLE, layout=FULL),
                            "u8 = vídeo de 8 bit; temp = matriz radiométrica"),
@@ -182,8 +184,8 @@ class Panel:
             window_s=w.BoundedFloatText(value=0.2, min=0.04, max=2, step=0.04, description="Promedio temporal (s)", style=STYLE, layout=FULL),
             min_area=w.BoundedIntText(value=40, min=1, max=5000, step=5, description="Área mínima (px)", style=STYLE, layout=FULL))
         self.D["auto_gf"].observe(lambda c: setattr(self.D["gas_free_s"], "disabled", c["new"]), names="value")
-        det = w.VBox([h("3 · Cálculos del detector")] + list(self.D.values()), layout=w.Layout(width="33%"))
-        self.settings_box = w.VBox([w.HBox([video, simul, det], layout=w.Layout(align_items="flex-start")),
+        det = w.VBox([h("3 · Cálculos del detector")] + list(self.D.values()), layout=w.Layout(width="25%"))
+        self.settings_box = w.VBox([w.HBox([video, simul, pert, det], layout=w.Layout(align_items="flex-start")),
                                     w.HTML("<small>Referencia de parámetros: docs/parametros.md. <code>band_fraction</code> y "
                                            "<code>k_abs</code> son marcadores: hay que calibrarlos con la cámara real.</small>")])
 

@@ -95,8 +95,8 @@ class Analysis:
     def series(self, truth, pred) -> dict:
         """Cantidades por fotograma (arrays de longitud T)."""
         n = self.n
-        out = dict(t_s=np.arange(n) / self.fps, detected_px=pred.reshape(n, -1).sum(1),
-                   zmax=np.abs(self.res["z"])[:, self.valid].max(1), alarm=self.alarm)
+        zmax = self.res["zmax"] if self.res.get("zmax") is not None else np.abs(self.res["z"])[:, self.valid].max(1)
+        out = dict(t_s=np.arange(n) / self.fps, detected_px=pred.reshape(n, -1).sum(1), zmax=zmax, alarm=self.alarm)
         if truth is not None:
             tp = (pred & truth).reshape(n, -1).sum(1)
             fp, fn = out["detected_px"] - tp, truth.reshape(n, -1).sum(1) - tp
