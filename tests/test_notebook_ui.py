@@ -86,3 +86,26 @@ def test_scenario_suggests_detector_and_guide_searches(panel):
     assert "viento" in panel.guide_html.value.lower()
     panel.reset_all()
     assert panel.D["stabilize"].value is False and panel.preset.value == "Por defecto"
+
+
+def test_long_video_tab_runs_and_writes_results(panel):
+    panel.l_dur.value = 6.0
+    panel.W["leak_on_s"].value = 2.0
+    panel.run_long()
+    assert panel.long is not None and "Vídeo largo listo" in panel.status.value
+    assert (Path(panel.out_dir) / "largo" / "resultados" / "serie_temporal.csv").exists()
+
+
+def test_real_video_button_loads_a_file(panel, tmp_path):
+    cv2 = pytest.importorskip("cv2")
+    seq = sim.simulate(sim.half_resolution(sim.Config(duration_s=4, leak_on_s=1.5, flow_g_s=0.5)))
+    h, wd = seq["u8"].shape[1:3]
+    path = tmp_path / "v.avi"
+    vw = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"MJPG"), 25, (wd, h), False)
+    for f in seq["u8"]:
+        vw.write(f)
+    vw.release()
+    panel.vid_path.value = str(path)
+    panel.vid_gf.value = 1.2
+    panel.load_real_video()
+    assert panel.seq is not None and panel.an is not None and not panel.an.has_truth

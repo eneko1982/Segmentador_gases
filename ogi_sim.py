@@ -865,7 +865,7 @@ def simulate(cfg: Config) -> dict:
     return out
 
 
-def simulate_to_dir(cfg: Config, path, flush_every: int = 250) -> Path:
+def simulate_to_dir(cfg: Config, path, flush_every: int = 250, progress=None) -> Path:
     """Write the sequence to a folder frame by frame (one .npy per array, read later as memory maps).
 
     Memory use does not depend on the duration. Layout: <path>/u8.npy, contrast.npy, mask.npy, ... and meta.json."""
@@ -880,6 +880,8 @@ def simulate_to_dir(cfg: Config, path, flush_every: int = 250) -> Path:
         if (i + 1) % flush_every == 0:
             for m in maps.values():
                 m.flush()
+            if progress:
+                progress(i + 1, sim_.n_frames)
     for m in maps.values():
         m.flush()
     (path / "meta.json").write_text(sim_.meta())
@@ -989,6 +991,8 @@ def main():
     ap.add_argument("--wind", type=float, default=None, help="m/s")
     ap.add_argument("--duration", type=float, default=None, help="s")
     ap.add_argument("--preview", action="store_true", help="also write an animated GIF")
+    ap.add_argument("--stream", action="store_true",
+                    help="write each sequence to a folder frame by frame (memory independent of the duration; for long videos)")
     ap.add_argument("--perturbations", action="store_true", help="with --n: add random real-world perturbations")
     ap.add_argument("--preset", default=None, help="name of a file in configs/ (without .json)")
     ap.add_argument("--config", default=None, help="JSON file with parameter overrides")
@@ -1037,8 +1041,12 @@ def main():
 
     out.mkdir(parents=True, exist_ok=True)
     for i, cfg in enumerate(configs):
-        seq = simulate(cfg)
         name = f"seq_{i:04d}_{cfg.scene}"
+        if args.stream:
+            simulate_to_dir(cfg, out / name, progress=lambda k, n: print(f"\r{name}: {k}/{n} frames", end="", flush=True))
+            print(f"\r{name}: {int(round(cfg.duration_s * cfg.fps))} frames written to {out / name}/ (folder of .npy + meta.json)")
+            continue
+        seq = simulate(cfg)
         save_sequence(out / f"{name}.npz", seq)
         if args.preview:
             save_preview(out / f"{name}.gif", seq)

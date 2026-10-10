@@ -28,9 +28,9 @@ def simulated(duration=3.0, leak_on=1.5) -> AppTest:
     return at
 
 
-def test_loads_with_six_tabs_and_all_parameters():
+def test_loads_with_seven_tabs_and_all_parameters():
     at = fresh()
-    assert len(at.tabs) == 6
+    assert len(at.tabs) == 7
     sys.path.insert(0, str(Path(APP).parent))
     import ogi_sim
     for f in ogi_sim.Config.__dataclass_fields__:
@@ -137,3 +137,36 @@ def test_scenario_suggests_the_detector_profile():
     at.selectbox(key="preset").select("camera_shake").run()
     assert at.selectbox(key="det_profile").value == "Cámara con vibración"
     assert at.session_state["det_stabilize"] is True
+
+
+def test_long_video_runs_from_the_sidebar():
+    at = fresh()
+    at.slider(key="p_leak_on_s").set_value(2.0).run()
+    at.number_input(key="long_dur").set_value(5.0).run()
+    at.button(key="btn_long").click().run()
+    assert not at.exception
+    run = at.session_state["long"]
+    assert run.n > 100 and run.summary["scores"]["all"]["iou"] > 0.3
+
+
+def test_real_video_sequence_displays_without_truth(tmp_path):
+    cv2 = pytest.importorskip("cv2")
+    sys.path.insert(0, str(Path(APP).parent))
+    import ogi_sim
+    import video_io
+    seq = ogi_sim.simulate(ogi_sim.half_resolution(ogi_sim.Config(duration_s=4, leak_on_s=1.5, flow_g_s=0.5)))
+    h, wd = seq["u8"].shape[1:3]
+    vw = cv2.VideoWriter(str(tmp_path / "v.avi"), cv2.VideoWriter_fourcc(*"MJPG"), 25, (wd, h), False)
+    for f in seq["u8"]:
+        vw.write(f)
+    vw.release()
+    real = video_io.load_video(tmp_path / "v.avi", gas_free_s=1.2)
+    at = fresh()
+    at.session_state["seq"] = real
+    at.session_state["seq_version"] = 1
+    at.session_state["det_auto_gf"] = False
+    at.session_state["det_gas_free"] = 1.2
+    at.run()
+    at.button(key="btn_det").click().run()
+    assert not at.exception, at.exception
+    assert at.session_state["det"]["an"].has_truth is False

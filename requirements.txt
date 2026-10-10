@@ -4,3 +4,4 @@ pillow
 matplotlib
 pandas
 streamlit>=1.50
+opencv-python-headless>=4.8   # opcional: leer vídeos .mp4/.avi

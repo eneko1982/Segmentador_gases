@@ -43,6 +43,10 @@ Panel de control con ajustes del vídeo, de la simulación y del detector; repro
 
 Sin instalar nada: [abrir en GitHub Codespaces](https://codespaces.new/eneko1982/Segmentador_gases?quickstart=1) (interfaz completa) o el cuaderno `notebooks/colab.ipynb` en Google Colab, que trae el **mismo panel completo dentro del cuaderno** (sin servidor ni túnel; pasos en `docs/interfaz.md`).
 
+Los ajustes se pueden ver en tres niveles (**Básico**, 14 ajustes; Avanzado; Experto, todos). Cada uno tiene una ayuda «qué hace / qué pasa si lo subes / valor típico / por defecto» y hay una pestaña **Guía** con buscador; el resumen «Lo que has cambiado» permite devolver cualquiera a su valor por defecto. **Si no sabes qué hace un ajuste, no lo toques.**
+
+Además: perturbaciones del mundo real en el simulador, detectores preparados para ellas (perfiles; resultados y límites en [`docs/robustez.md`](docs/robustez.md)), **vídeos largos** que se guardan en disco (pestaña «Vídeo largo», `--stream`) y **carga de vídeos reales** `.mp4/.avi` (sin verdad: se ve y se detecta, sin IoU).
+
 ## Parametrizar el simulador
 
 Todo lo ajustable está en `Config` y documentado en [`docs/parametros.md`](docs/parametros.md).

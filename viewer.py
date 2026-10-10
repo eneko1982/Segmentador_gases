@@ -150,11 +150,16 @@ label{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 <label>Opacidad <input id="opacity" type="range" min="0.1" max="1" step="0.05" value="0.9" style="width:90px"></label>
 <label>Grosor <select id="thick"><option>1</option><option>2</option><option>3</option></select></label>
 <label><span class="sw" id="tpsw" style="background:#2ea043"></span><span id="errhint" style="color:var(--muted)">verde acierto · naranja falso positivo · azul falso negativo</span></label></div>
+<div class="bar panel" style="margin-left:auto;margin-right:auto;width:fit-content" title="Dibuja un polígono sobre la imagen y pega sus coordenadas en el panel (zona de interés o zona de origen del detector)">
+<button id="zbtn">✏️ Dibujar zona</button><button id="zundo">Deshacer punto</button><button id="zclear">Borrar</button>
+<input id="ztext" type="text" size="38" placeholder="x,y; x,y; x,y  (fracciones 0–1)" style="font:inherit"><button id="zcopy">Copiar</button>
+<span id="zhint" style="color:var(--muted)">Pulsa «Dibujar zona» y haz clic en la imagen (mín. 3 puntos).</span></div>
 <div class="bar"><label>Escala de exportación <select id="escale"><option>1</option><option>2</option><option selected>3</option><option>4</option></select>×</label>
 <button id="save">⬇ Descargar fotograma (PNG)</button></div></div>
 <script>
 const D=__DATA__, W=D.w, H=D.h, N=D.n, PX=W*H;
 const $=id=>document.getElementById(id);
+const Z={on:false,pts:[]};
 const S={i:0,playing:false,last:0,showT:false,showP:false,style:'contour',opacity:0.9,thick:1,speed:1,loop:true};
 let views=[],maskT=null,maskP=null,ctxs=[],ov=document.createElement('canvas'),octx,ovKey='',edgeCache=new Map();
 ov.width=W;ov.height=H;octx=ov.getContext('2d');
@@ -188,9 +193,16 @@ function overlay(i){
   }else if(T&&P){const al=Math.round(a*0.4);
     for(let k=0;k<PX;k++){if(T[k]&&P[k])put(k,COL.TP,al);else if(P[k])put(k,COL.P,al);else if(T[k])put(k,COL.T,al);}}
   octx.putImageData(img,0,0);}
+function zone(c){
+  if(!Z.pts.length)return;c.save();c.lineWidth=Math.max(1,W/200);c.strokeStyle='#ffd400';c.fillStyle='rgba(255,212,0,0.15)';
+  c.beginPath();Z.pts.forEach((p,k)=>{const x=p[0]*W,y=p[1]*H;k?c.lineTo(x,y):c.moveTo(x,y);});
+  if(Z.pts.length>2){c.closePath();c.fill();}c.stroke();
+  c.fillStyle='#ffd400';Z.pts.forEach(p=>{c.beginPath();c.arc(p[0]*W,p[1]*H,Math.max(1.5,W/150),0,6.3);c.fill();});c.restore();}
+function zsync(){$('ztext').value=Z.pts.map(p=>p[0].toFixed(3)+','+p[1].toFixed(3)).join('; ');draw();}
+function zparse(t){const pts=t.split(/[;\n]/).map(a=>a.trim().split(/[ ,]+/).map(Number)).filter(a=>a.length===2&&a.every(isFinite));Z.pts=pts;draw();}
 function draw(){
   const i=S.i;overlay(i);
-  views.forEach((v,j)=>{const c=ctxs[j];c.drawImage(v.imgs[i],0,0);c.drawImage(ov,0,0);});
+  views.forEach((v,j)=>{const c=ctxs[j];c.drawImage(v.imgs[i],0,0);c.drawImage(ov,0,0);zone(c);});
   $('slider').value=i;
   const t=D.idx[i]/D.fps;let s=`Fotograma ${D.idx[i]+1}/${D.idx[N-1]+1} · t = ${t.toFixed(2)} s`+(t<D.learn?' · el detector aprende el fondo':(t<D.leakOn?' · sin gas':' · fuga abierta'));
   const T=maskT?maskT[i]:null,P=maskP?maskP[i]:null;
@@ -237,6 +249,13 @@ function save(){
     $('style').onchange=e=>{S.style=e.target.value;draw();};$('opacity').oninput=e=>{S.opacity=+e.target.value;draw();};
     $('thick').onchange=e=>{S.thick=+e.target.value;draw();};$('zoom').oninput=zoom;$('save').onclick=save;
     window.addEventListener('resize',zoom);
+    $('zbtn').onclick=()=>{Z.on=!Z.on;$('zbtn').classList.toggle('main',Z.on);$('zbtn').textContent=Z.on?'✔ Terminar de dibujar':'✏️ Dibujar zona';
+      ctxs.forEach(c=>c.canvas.style.cursor=Z.on?'crosshair':'default');};
+    ctxs.forEach(c=>c.canvas.addEventListener('click',e=>{if(!Z.on)return;const r=c.canvas.getBoundingClientRect();
+      Z.pts.push([Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))]);zsync();}));
+    $('zundo').onclick=()=>{Z.pts.pop();zsync();};$('zclear').onclick=()=>{Z.pts=[];zsync();};
+    $('ztext').onchange=e=>zparse(e.target.value);
+    $('zcopy').onclick=()=>{const t=$('ztext');t.select();try{navigator.clipboard.writeText(t.value);}catch(_){document.execCommand('copy');}};
     document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();setPlaying(!S.playing);}
       else if(e.code==='ArrowRight'){setPlaying(false);step(1);}else if(e.code==='ArrowLeft'){setPlaying(false);step(-1);}});
   }catch(err){document.getElementById('msg').textContent='No se pudo cargar el reproductor: '+err;}

@@ -18,12 +18,14 @@ Estado: ✅ hecho · 🔶 en curso · ⬜ pendiente. Se actualiza en cada avance
 
 | # | Paso | Estado |
 |---|---|---|
-| A1 | Perturbaciones de mundo real en el simulador: deriva del fondo, vibración, saltos del obturador, objetos que se mueven | ⬜ |
-| A2 | Detector más robusto: referencia que se actualiza sola, zona de vigilancia | ⬜ |
-| A3 | Vídeos largos: escritura por trozos a disco | ⬜ |
+| A1 | Perturbaciones de mundo real en el simulador: deriva del fondo, nubes, vibración, saltos del obturador, objetos que se mueven, compresión, píxeles defectuosos | ✅ |
+| A2 | Detector más robusto: fondo adaptativo, estabilización, superficie de deriva, signo esperado, umbral automático, zona de vigilancia y de origen; perfiles y benchmark de robustez (`docs/robustez.md`) | ✅ |
+| A3 | Vídeos largos: escritura fotograma a fotograma a disco, detector en continuo y pestaña «Vídeo largo» | ✅ |
 | A4 | Programa de captura probado con una cámara simulada | ⬜ |
 | A5 | Protocolo escrito del ensayo en banco | ⬜ |
 | A6 | Sensibilidad a `band_fraction` y `k_abs` | ⬜ |
+| A8 | Cargar vídeos reales (.mp4/.avi) en el panel, sin máscara verdadera | ✅ |
+| A9 | Claridad de parámetros: guía de cada ajuste, niveles Básico/Avanzado/Experto, resumen de cambios, escenarios con nombre | ✅ |
 | A7 | Panel de control (Streamlit): ajustes de vídeo, simulación y detector; reproductor con máscaras superpuestas; resultados y exportación (`app.py`, `docs/interfaz.md`) | ✅ |
 
 ## Validación con la cámara real

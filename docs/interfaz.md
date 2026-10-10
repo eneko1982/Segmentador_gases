@@ -46,6 +46,17 @@ py -3 -m venv .venv
 | El antivirus bloquea el `.bat` | Usa los comandos de PowerShell de arriba. |
 | La primera simulación tarda | Es normal con la resolución completa; la vista rápida (½) va unas 4 veces más rápida. |
 
+## Guía rápida de los ajustes
+
+1. Elige un **Escenario** (lista con nombres claros: «Placa caliente, caso fácil», «Cámara con vibración»…). Carga sus parámetros y sugiere el detector adecuado.
+2. «Cuántos ajustes ver»: **Básico** (14), **Avanzado** o **Experto**. Lo que no ves conserva su valor por defecto.
+3. Pasa el ratón por el «?» de cada ajuste: qué es, qué pasa si lo subes, valor típico y valor por defecto.
+4. «Lo que has cambiado» enumera lo distinto del valor por defecto, con ↩ para devolver cada uno.
+5. Pestaña **📖 Guía**: todos los ajustes con buscador y filtros por nivel y parte.
+6. Detector: lista «Qué detector usar» (perfiles con su coste). En el reproductor, «✏️ Dibujar zona» da las coordenadas para la zona de interés o de origen.
+7. **Vídeo largo** (barra lateral + pestaña 🎞️): para minutos u horas; escribe a disco y la memoria no crece con la duración.
+8. **Cargar un vídeo real**: `.mp4/.avi/.mov` (necesita OpenCV, ya en `requirements.txt`). Indica los segundos iniciales sin gas. Sin verdad: sin IoU ni recall.
+
 ## Cómo está organizada
 
 **Barra lateral (los ajustes)** — tres bloques, más un preset y los botones de ejecución:

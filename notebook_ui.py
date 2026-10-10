@@ -25,9 +25,11 @@ import pandas as pd
 from IPython.display import HTML, Image, clear_output, display
 
 import core
+import longvideo
 import exports
 import param_guide as pg
 import ogi_sim as sim
+import video_io
 import viewer
 from analysis import PRED_KINDS, TRUTH_KINDS, WINDOWS
 
@@ -90,8 +92,10 @@ class Panel:
         self._build_video()
         self._build_results()
         self._build_export()
-        self.tabs = w.Tab(children=[self.settings_box, self.video_box, self.results_box, self.export_box, self.guide_box])
-        for i, t in enumerate(["⚙️ Ajustes", "🎬 Vídeo", "📊 Resultados", "📦 Exportar", "📖 Guía"]):
+        self._build_long()
+        self.tabs = w.Tab(children=[self.settings_box, self.video_box, self.results_box, self.export_box, self.guide_box,
+                                    self.long_box])
+        for i, t in enumerate(["⚙️ Ajustes", "🎬 Vídeo", "📊 Resultados", "📦 Exportar", "📖 Guía", "🎞️ Vídeo largo"]):
             self.tabs.set_title(i, t)
         self.set_params({})
         self._apply_profile()
@@ -254,8 +258,66 @@ class Panel:
                                     w.HTML("<small>Guía de cada ajuste: pestaña «Guía» o pasa el ratón por el nombre. "
                                            "<code>band_fraction</code> y <code>k_abs</code> son marcadores: hay que calibrarlos "
                                            "con la cámara real.</small>")])
+        self._build_video_loader()
+        self.settings_box.children = (*self.settings_box.children, self.vid_box)
         self._build_guide()
         self._watching = False
+
+    # ------------------------------------------------------------------ vídeo real
+    def _build_video_loader(self):
+        sty = {"description_width": "initial"}
+        self.vid_path = w.Text(placeholder="/content/mi_video.mp4  (o sube el archivo con el botón)", description="Archivo",
+                               layout=w.Layout(width="520px"))
+        self.vid_upload = w.FileUpload(accept=",".join(video_io.EXTENSIONS), multiple=False, description="Subir vídeo")
+        self.vid_gf = w.BoundedFloatText(value=3.0, min=0.5, max=120, step=0.5, description="Segundos iniciales sin gas", style=sty)
+        self.vid_k = w.BoundedFloatText(value=0.0, min=0.0, max=5.0, step=0.001, description="K por nivel de gris (0 = desconocido)", style=sty)
+        self.vid_max = w.BoundedFloatText(value=30.0, min=1, max=600, step=1, description="Máx. segundos", style=sty)
+        self.vid_btn = w.Button(description="Usar este vídeo", icon="film", layout=w.Layout(width="180px"))
+        self.vid_btn.on_click(lambda _: self.load_real_video())
+        self.vid_box = w.Accordion(children=[w.VBox([
+            w.HTML("<small>Un vídeo real no tiene máscara verdadera: se ve y se detecta, pero sin IoU ni recall. Si no conoces los K "
+                   "por nivel de gris déjalo en 0: el detector trabaja en niveles de gris (los «mK» mostrados serán niveles ×1000).</small>"),
+            w.HBox([self.vid_path, self.vid_upload]), w.HBox([self.vid_gf, self.vid_k, self.vid_max]), self.vid_btn])],
+            selected_index=None)
+        self.vid_box.set_title(0, "Cargar un vídeo real (.mp4, .avi…)")
+
+    def _uploaded_video(self):
+        """(nombre, bytes) del archivo subido; vale para ipywidgets 7 (dict) y 8 (tupla)."""
+        val = self.vid_upload.value
+        items = list(val.values()) if isinstance(val, dict) else list(val)
+        if not items:
+            return None
+        it = items[0]
+        name = it.get("name") or it.get("metadata", {}).get("name", "video.mp4")
+        return name, bytes(it["content"])
+
+    def load_real_video(self):
+        import tempfile
+        try:
+            up = self._uploaded_video()
+            kw = dict(gas_free_s=self.vid_gf.value, k_per_dn=self.vid_k.value, max_frames=int(self.vid_max.value * 25))
+            self._say("Leyendo el vídeo…", "info")
+            if self.vid_path.value.strip():
+                seq = video_io.load_video(self.vid_path.value.strip(), **kw)
+            elif up:
+                with tempfile.TemporaryDirectory() as tmp:
+                    path = Path(tmp) / Path(up[0]).name
+                    path.write_bytes(up[1])
+                    seq = video_io.load_video(path, **kw)
+            else:
+                self._say("Indica la ruta de un vídeo o súbelo con el botón.", "warn")
+                return
+        except (ValueError, RuntimeError, OSError) as err:
+            self._say(str(err), "error")
+            return
+        self.seq = seq
+        self.version += 1
+        self.an = self.params = None
+        self.auto_gf.value = False
+        self.D["gas_free_s"].value = float(self.vid_gf.value)
+        self.D["polarity"].value = "both"
+        self._clear_outputs()
+        self.run_detector()
 
     def _watch_changes(self):
         if self._watching:
@@ -498,7 +560,7 @@ class Panel:
         if self.seq is None:
             return ""
         meta = json.loads(str(self.seq["meta"]))
-        cells = [("Fotogramas", len(self.seq["u8"])), ("Gas emitido", f"{meta['emitted_g']:.3f} g")]
+        cells = [("Fotogramas", len(self.seq["u8"])), ("Gas emitido", "—" if meta.get("emitted_g") is None else f"{meta['emitted_g']:.3f} g")]
         if "contrast" in self.seq:
             cells.append(("Cambio máximo en un píxel", f"{1e3 * float(np.abs(self.seq['contrast']).max()):.0f} mK"))
         if self.an is not None:
@@ -531,6 +593,76 @@ class Panel:
             with warnings.catch_warnings():                      # IPython recomienda IFrame, pero aquí hace falta srcdoc
                 warnings.simplefilter("ignore")
                 display(HTML(viewer.player_iframe(payload, self.v_zoom.value)))
+
+    # ------------------------------------------------------------------ pestaña Vídeo largo
+    def _build_long(self):
+        self.long = None
+        self.l_dur = w.BoundedFloatText(value=120.0, min=5, max=7200, step=5, description="Duración (s)",
+                                        style={"description_width": "initial"})
+        self.l_info = w.HTML("")
+        self.l_btn = w.Button(description="Simular vídeo largo", icon="play", button_style="primary", layout=w.Layout(width="220px"))
+        self.l_out = w.Output()
+        self.l_btn.on_click(lambda _: self.run_long())
+        self.l_dur.observe(lambda c: self._long_estimate(), names="value")
+        self.long_box = w.VBox([w.HTML("<p>Para vídeos de minutos u horas: se simula y se detecta fotograma a fotograma guardando "
+                                       "en disco, así que la memoria no depende de la duración. Usa los ajustes de la pestaña "
+                                       "Ajustes; la duración se define aquí.</p>"),
+                                w.HBox([self.l_dur, self.l_btn]), self.l_info, self.l_out])
+
+    def _long_cfg(self):
+        cfg = sim.apply_overrides(self.config(), dict(duration_s=float(self.l_dur.value)))
+        return sim.half_resolution(cfg) if self.res.value.startswith("Rápida") else cfg
+
+    def _long_estimate(self):
+        try:
+            est = longvideo.disk_estimate(self._long_cfg())
+        except ValueError as err:
+            self.l_info.value = self._msg(str(err), "error")
+            return None
+        self.l_info.value = self._msg(f"{est['n_frames']} fotogramas: unos {est['need_gb']:.2f} GB en disco "
+                                      f"({est['free_gb']:.1f} GB libres); tiempo orientativo {est['n_frames'] / 15 / 60:.1f} min.",
+                                      "info" if est["need_gb"] < est["free_gb"] * 0.9 else "error")
+        return est
+
+    def run_long(self):
+        est = self._long_estimate()
+        if est is None or est["need_gb"] >= est["free_gb"] * 0.9:
+            return
+        cfg = self._long_cfg()
+        det_p = self.det_params()
+        det_p["gas_free_s"] = round(0.8 * cfg.leak_on_s, 3) if det_p["gas_free_s"] is None else det_p["gas_free_s"]
+        self.l_btn.disabled = True
+        try:
+            self._say("Simulando el vídeo largo…", "info")
+            with self.l_out:
+                clear_output(wait=True)
+                print("Trabajando… (progreso en la línea de estado)")
+            last = [0]
+
+            def prog(phase, i, n):
+                if i - last[0] >= max(n // 20, 1) or phase != "simulando":
+                    last[0] = i
+                    self._say(f"{phase.capitalize()}… {i}/{n} fotogramas", "info")
+            self.long = longvideo.run_long(cfg, self.out_dir / "largo", det_p, progress=prog)
+        except ValueError as err:
+            self._say(str(err), "error")
+            return
+        finally:
+            self.l_btn.disabled = False
+        self._say("Vídeo largo listo.", "ok")
+        run, sm = self.long, self.long.summary
+        with self.l_out:
+            clear_output(wait=True)
+            sc = sm.get("scores", {}).get("all", {})
+            display(HTML(f"<p><b>{sm['duration_s']:.0f} s</b> · retraso {sm['detection_delay_s']} s · falsa alarma antes de la fuga: "
+                         f"{'sí' if sm['false_alarm_before_leak'] else 'no'} · IoU global {sc.get('iou', float('nan')):.2f}</p>"))
+            payload = run.payload(150)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                display(HTML(viewer.player_iframe(payload, 520)))
+            files = run.export(run.path / "resultados")
+            display(HTML(f"<p>{html.escape(payload['note'])}. Resultados escritos en <code>{html.escape(str(files[0].parent))}</code>:</p>"))
+            display(Image(filename=str(files[2])))
 
     # ------------------------------------------------------------------ pestaña Resultados
     def _build_results(self):

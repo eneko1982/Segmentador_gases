@@ -121,3 +121,54 @@ def test_every_scenario_has_title_and_known_detector():
     import core
     for name, e in core.preset_catalog().items():
         assert e["title"] != name and e["detector"] in core.DETECTOR_PROFILES, name
+
+
+def _write_avi(path, seq):
+    cv2 = pytest.importorskip("cv2")
+    h, wd = seq["u8"].shape[1:3]
+    vw = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"MJPG"), 25, (wd, h), False)
+    for f in seq["u8"]:
+        vw.write(f)
+    vw.release()
+
+
+def test_real_video_loads_and_is_detected_without_truth(tmp_path):
+    import core
+    import ogi_sim
+    import video_io
+    seq = ogi_sim.simulate(ogi_sim.half_resolution(ogi_sim.Config(duration_s=5, leak_on_s=2.0, flow_g_s=0.5)))
+    _write_avi(tmp_path / "v.avi", seq)
+    real = video_io.load_video(tmp_path / "v.avi", gas_free_s=1.5)
+    assert real["u8"].shape[0] == seq["u8"].shape[0] and "mask" not in real
+    an, msg, p = core.run_detection(real, dict(gas_free_s=1.5))
+    assert an is not None and not an.has_truth
+    assert an.summary({"kind": "det"}, {"kind": "mask"})["input"] == "u8"
+    with pytest.raises(ValueError):
+        video_io.load_video(tmp_path / "nada.avi")
+
+
+def test_long_video_streaming_matches_in_memory(tmp_path):
+    import core
+    import longvideo
+    import ogi_sim
+    cfg = ogi_sim.half_resolution(ogi_sim.Config(duration_s=6, leak_on_s=2.0, flow_g_s=0.4))
+    run = longvideo.run_long(cfg, tmp_path / "largo")
+    an, _, _ = core.run_detection(ogi_sim.simulate(cfg), {})
+    assert (np.asarray(run.mask) == an.res["mask"]).all()
+    assert run.summary["scores"]["all"]["iou"] > 0.5 and len(run.series) == run.n
+    assert run.payload(20)["n"] <= 20
+    files = run.export(tmp_path / "e")
+    assert {p.name for p in files} == {"serie_temporal.csv", "resumen.json", "series.png"}
+    est = longvideo.disk_estimate(cfg)
+    assert est["n_frames"] == run.n and est["need_gb"] > 0
+
+
+def test_cli_stream_writes_a_loadable_folder(tmp_path):
+    import ogi_sim
+    r = subprocess.run([sys.executable, str(Path(__file__).resolve().parent.parent / "ogi_sim.py"), "--out", str(tmp_path),
+                        "--stream", "--set", "duration_s=2", "--set", "leak_on_s=1", "--set", "width=48", "--set", "height=36"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    folder = next(p for p in tmp_path.iterdir() if p.is_dir())
+    seq = ogi_sim.load_sequence(folder)
+    assert seq["u8"].shape[0] == 50 and "mask" in seq

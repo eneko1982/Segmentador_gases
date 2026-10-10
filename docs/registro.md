@@ -2,6 +2,21 @@
 
 Entradas de la más reciente a la más antigua.
 
+## Perturbaciones, detector robusto, vídeos largos, vídeo real y claridad de parámetros
+
+Motivo: lo que se puede hacer antes de tener la cámara (A1–A3), cargar vídeos reales y que los ~100 parámetros dejen de ser incomprensibles.
+
+- **A1** (`ogi_sim.py`): grupo «Perturbaciones del mundo real» (cambio lento del fondo, nube, objetos que cruzan, obturador, vibración, compresión, píxeles defectuosos). Con los valores por defecto el simulador sigue dando **exactamente** los mismos bits (hash en `tests/test_perturbations.py`). Generador aleatorio propio para no alterar la semilla del resto.
+- **A2** (`gas_detect.py`): opciones `background="adaptive"`, `stabilize`, `drift_order`, `polarity`, `auto_threshold`, `roi`, `source_roi`/`require_source`. El camino original se conserva bit a bit (`tests/test_detector_robust.py`). Perfiles en `core.DETECTOR_PROFILES`; benchmark en `benchmark_robust.py` y resultados en `docs/robustez.md`.
+  - Descartado tras medirlo: reaprender solo altas frecuencias tras el obturador y proteger píxeles individuales (empeoraban; con NUC cada 2 s y sin gas: 6333 píxeles falsos con fondo fijo, 83 con el adaptativo final). Regla final: el fondo se actualiza en todas partes salvo mientras hay alarma.
+  - Estabilizar mal hecho borraba el 92 % de la imagen; se sustituyó por correlación de fase + refinado Lucas-Kanade y exclusión de los píxeles inestables.
+- **A3** (`longvideo.py`, `ogi_sim.simulate_to_dir`, `--stream`): simula y detecta fotograma a fotograma; la memoria no depende de la duración. Verificado idéntico al camino en memoria. Pestaña «Vídeo largo» en ambos paneles. No se guardan z ni estimación.
+- **Vídeo real** (`video_io.py`, necesita OpenCV): sin verdad → sin IoU ni recall; hay que indicar los segundos iniciales sin gas; sin K por nivel de gris los «mK» son niveles ×1000.
+- **Claridad de parámetros** (`param_guide.py`): título en lenguaje llano, nivel B/A/E, parte del sistema a la que afecta, qué hace, qué pasa si se sube y valor típico para **cada** parámetro del simulador y del detector (un test garantiza que no falte ninguno). Paneles con niveles Básico (14 ajustes) / Avanzado / Experto, ayuda emergente con el valor por defecto, resumen «Lo que has cambiado» con botón de restablecer, pestaña «Guía» con buscador y escenarios con nombre que sugieren el detector adecuado. `docs/parametros.md` se regenera con esas columnas.
+- Reproductor: botón «Dibujar zona» para marcar un polígono y copiar sus coordenadas.
+- Error encontrado: el `Layout` compartido de ipywidgets hacía que ocultar un ajuste ocultara todos; ahora cada ajuste va en su propio contenedor. Un `pip download` dejó unas ruedas en el repositorio; se retiraron del historial antes de que nadie las usara.
+- **No** probado: Colab real, `.bat` en Windows, Codespaces, Streamlit Cloud. Tampoco hay ningún dato de la cámara real.
+
 ## Panel completo dentro del cuaderno de Colab
 
 Motivo: el usuario no puede ejecutar nada en local en el ordenador de empresa y el túnel de Streamlit está bloqueado por el cortafuegos; Colab sí funciona.

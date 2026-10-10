@@ -42,6 +42,8 @@ import viewer  # noqa: E402
 from analysis import PRED_KINDS, TRUTH_KINDS, WINDOWS, Analysis  # noqa: E402
 import core  # noqa: E402
 import param_guide as pg  # noqa: E402
+import longvideo  # noqa: E402
+import video_io  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
 CATALOG = core.preset_catalog()
@@ -389,6 +391,102 @@ def load_uploaded(file) -> dict | None:
     return seq
 
 
+LONG_DIR = ROOT / "salida" / "largo"
+
+
+def long_section():
+    st.caption("Para vídeos de minutos u horas: se simula y se detecta fotograma a fotograma, guardando en disco, así que "
+               "la memoria no depende de la duración. Usa los parámetros de arriba; la duración se define aquí. "
+               "No se guardan los mapas z ni la estimación (ocuparían como el vídeo).")
+    dur = st.number_input("Duración del vídeo largo (s)", 5.0, 7200.0, 120.0, 5.0, key="long_dur")
+    try:
+        cfg = sim.apply_overrides(current_config(), dict(duration_s=float(dur)))
+        run_cfg = sim.half_resolution(cfg) if st.session_state["res_mode"].startswith("Rápida") else cfg
+        est = longvideo.disk_estimate(run_cfg)
+        st.caption(f"{est['n_frames']} fotogramas a {run_cfg.width}×{run_cfg.height}: unos {est['need_gb']:.2f} GB en disco "
+                   f"({est['free_gb']:.1f} GB libres). Tiempo orientativo: {est['n_frames'] / 15 / 60:.1f} min.")
+        ok = est["need_gb"] < est["free_gb"] * 0.9
+        if not ok:
+            st.error("No hay espacio en disco suficiente.")
+    except ValueError as err:
+        st.error(str(err))
+        return
+    if st.button("▶ Simular vídeo largo", key="btn_long", disabled=not ok):
+        bar = st.progress(0.0, text="Simulando…")
+        det_p = det_params()
+        det_p["gas_free_s"] = round(0.8 * cfg.leak_on_s, 3) if st.session_state["det_auto_gf"] else st.session_state["det_gas_free"]
+
+        def prog(phase, i, n):
+            bar.progress(min(i / max(n, 1), 1.0) * (0.85 if phase == "simulando" else 1.0), text=f"{phase.capitalize()}… {i}/{n}")
+        try:
+            LONG_DIR.parent.mkdir(exist_ok=True)
+            st.session_state["long"] = longvideo.run_long(run_cfg, LONG_DIR, det_p, progress=prog)
+            st.session_state.pop("long_error", None)
+        except ValueError as err:
+            st.session_state["long_error"] = str(err)
+        bar.empty()
+
+
+def tab_largo():
+    run = st.session_state.get("long")
+    if st.session_state.get("long_error"):
+        st.error(st.session_state["long_error"])
+    if run is None:
+        st.info("Abre «Vídeo largo (se guarda en disco)» en la barra lateral, elige la duración y pulsa **▶ Simular vídeo largo**.")
+        return
+    sm = run.summary
+    c = st.columns(5)
+    c[0].metric("Duración", f"{sm['duration_s']:.0f} s")
+    c[1].metric("Retraso de detección", "—" if sm["detection_delay_s"] is None else f"{sm['detection_delay_s']:.2f} s")
+    c[2].metric("Falsa alarma antes de la fuga", "sí" if sm["false_alarm_before_leak"] else "no")
+    if "scores" in sm:
+        c[3].metric("IoU (todo el vídeo)", f"{sm['scores']['all']['iou']:.2f}")
+        c[4].metric("IoU (último segundo)", f"{sm['scores']['last']['iou']:.2f}")
+    mf = st.select_slider("Fotogramas en el reproductor", [50, 100, 150, 250, 400], 150, key="long_frames")
+    payload = run.payload(mf)
+    components.html(viewer.player_html(payload, st.session_state["vid_zoom"]), height=viewer.player_height(payload), scrolling=False)
+    st.caption(payload["note"] + ". Los datos completos están en la carpeta " + str(run.path) + ".")
+    df = run.series
+    chart_df = df.set_index("t_s")[["px_reales", "px_detectados"]]
+    st.line_chart(chart_df)
+    st.line_chart(df.set_index("t_s")[["iou"]])
+    st.line_chart(df.set_index("t_s")[["z_max"]])
+    if st.button("Exportar CSV, resumen y figura a la carpeta del vídeo", key="btn_long_exp"):
+        files = run.export(run.path / "resultados")
+        st.success("Escrito: " + ", ".join(str(f) for f in files))
+    st.download_button("Descargar serie temporal (CSV)", exports.csv_bytes(df), "serie_temporal_largo.csv", "text/csv")
+
+
+def video_loader():
+    st.caption("Un vídeo real no tiene máscara verdadera: se ve y se detecta, pero sin IoU ni recall. Hay que decir cuántos "
+               "segundos iniciales no tienen gas. Si no conoces los K por nivel de gris, déjalo en 0: el detector trabaja en "
+               "niveles de gris (los «mK» mostrados serán niveles ×1000).")
+    f = st.file_uploader("Vídeo", type=[e.lstrip(".") for e in video_io.EXTENSIONS], key="up_video")
+    c = st.columns(2)
+    gf = c[0].number_input("Segundos iniciales sin gas", 0.5, 120.0, 3.0, 0.5, key="vid_gf")
+    k = c[1].number_input("K por nivel de gris (0 = desconocido)", 0.0, 5.0, 0.0, 0.001, format="%g", key="vid_k")
+    c = st.columns(3)
+    fps = c[0].number_input("FPS (0 = el del archivo)", 0.0, 120.0, 0.0, 1.0, key="vid_fps")
+    mx = c[1].number_input("Máx. segundos", 1.0, 600.0, 30.0, 1.0, key="vid_max")
+    sc = c[2].number_input("Escala", 0.1, 1.0, 1.0, 0.1, key="vid_scale")
+    if f is not None and st.button("Usar este vídeo", key="btn_vid"):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / f.name
+            path.write_bytes(f.getvalue())
+            try:
+                with st.spinner("Leyendo el vídeo…"):
+                    probe = fps or 25.0
+                    seq = video_io.load_video(path, gas_free_s=gf, k_per_dn=k, fps=fps or None, scale=sc,
+                                              max_frames=int(mx * probe))
+            except (ValueError, RuntimeError) as err:
+                st.error(str(err))
+                return
+        st.session_state.update(det_auto_gf=False, det_gas_free=float(gf), det_polarity="both")
+        new_sequence(seq)
+        run_detector()
+
+
 def sidebar():
     with st.sidebar:
         st.markdown("## 🌫️ Segmentador de gases")
@@ -428,6 +526,10 @@ def sidebar():
                 if seq is not None:
                     new_sequence(seq)
                     run_detector()
+        with st.expander("Vídeo largo (se guarda en disco)"):
+            long_section()
+        with st.expander("Cargar un vídeo real (.mp4, .avi…)"):
+            video_loader()
         with st.expander("Comando equivalente (resolución completa)"):
             if ok:
                 st.code(command_line(cfg), language="bash")
@@ -485,7 +587,7 @@ def kpi_row(seq, det):
     info = seq_info(seq)
     c = st.columns(5)
     c[0].metric("Fotogramas", len(seq["u8"]))
-    c[1].metric("Gas emitido", f"{info['meta']['emitted_g']:.3f} g")
+    c[1].metric("Gas emitido", "—" if info["meta"].get("emitted_g") is None else f"{info['meta']['emitted_g']:.3f} g")
     c[2].metric("Cambio máximo en un píxel", f"{1e3 * float(np.abs(seq['contrast']).max()):.0f} mK" if "contrast" in seq else "—")
     if det is not None:
         sm = get_summary(det)
@@ -551,7 +653,9 @@ def tab_video():
     payload = cached_payload(key, seq, an, truth, pred, tuple(views), s["vid_vmax"], stride)
     components.html(viewer.player_html(payload, s["vid_zoom"]), height=viewer.player_height(payload), scrolling=False)
     st.caption("Espacio: reproducir/pausar · ←/→: fotograma anterior/siguiente. Rojo = más caliente, azul = más frío "
-               "en los mapas de mK. El botón «Descargar fotograma» guarda las vistas con las máscaras activas.")
+               "en los mapas de mK. El botón «Descargar fotograma» guarda las vistas con las máscaras activas. "
+               "«Dibujar zona» marca un polígono: copia sus coordenadas en el detector (nivel Avanzado: zona de interés / "
+               "zona de origen).")
 
 
 # ---------------------------------------------------------------------------
@@ -816,7 +920,7 @@ def main():
     st.title("Segmentador de gases")
     st.caption("Panel de control: ajusta el vídeo, la simulación y los cálculos; mira el vídeo con las máscaras real y "
                "detectada superpuestas; exporta resultados e imágenes.")
-    t1, t2, t3, t4, t5, t6 = st.tabs(["🎬 Vídeo", "📊 Resultados", "📦 Exportar", "📈 Benchmark", "⚖️ Comparar umbrales", "📖 Guía"])
+    t1, t2, t3, t4, t5, t6, t7 = st.tabs(["🎬 Vídeo", "📊 Resultados", "📦 Exportar", "📈 Benchmark", "⚖️ Comparar umbrales", "📖 Guía", "🎞️ Vídeo largo"])
     with t1:
         tab_video()
     with t2:
@@ -829,6 +933,8 @@ def main():
         tab_comparar()
     with t6:
         tab_guia()
+    with t7:
+        tab_largo()
 
 
 main()
