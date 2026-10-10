@@ -56,8 +56,11 @@ Abre https://codespaces.new/eneko1982/Segmentador_gases?quickstart=1 o, en la p�
 Cuaderno: `notebooks/colab.ipynb`. Para abrirlo:
 
 - Entra en https://colab.research.google.com → **Archivo → Abrir cuaderno → pestaña GitHub**, escribe `eneko1982/Segmentador_gases`, elige la rama `claude/loving-allen-jv3c71` y el cuaderno `notebooks/colab.ipynb`. (El enlace directo `colab.research.google.com/github/...` puede fallar con ramas que llevan `/` en el nombre; con una rama `main` sí funciona.)
-- Ejecuta las celdas en orden. Las celdas 1 a 5 (instalar, simular, ver, detectar, comparar umbrales) funcionan en Colab; cambias los parámetros editando un diccionario.
-- La celda 6 intenta lanzar la interfaz web con un túnel (`localtunnel`). **No está garantizada**: Colab puede bloquearlo o cambiarlo. Para la interfaz usa Codespaces.
+- Ejecuta las celdas en orden. Las celdas 1 a 5 instalan el proyecto, simulan una fuga, muestran la secuencia, ejecutan el detector y comparan los umbrales; los parámetros se cambian editando un diccionario.
+- La celda 6 es una **interfaz con deslizadores dentro del propio cuaderno** (preset, gas, caudal, viento, ráfagas, turbulencia, duración, NETD…). No necesita servidor web ni túnel. Es la versión reducida de la interfaz: simula y detecta; no incluye las pestañas Benchmark ni Comparar umbrales (esta última está en la celda 5).
+- Se comprobó ejecutando el cuaderno completo en un núcleo de Jupyter local. En Colab mismo no se ha podido probar.
+
+> **Redes corporativas.** Los servicios de túnel (`localtunnel`, `ngrok`…) suelen estar bloqueados por los cortafuegos de empresa: por eso el cuaderno ya no los usa. Si tu red también bloquea Codespaces o Streamlit Cloud, las opciones son pedir una revisión a Ciberseguridad (el propio aviso de bloqueo explica cómo) o ejecutar la interfaz en local (`streamlit run app.py`), que no sale a Internet.
 
 ### 3. Streamlit Community Cloud (una dirección web fija que compartes con otras personas)
 

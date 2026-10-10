@@ -32,7 +32,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 import ogi_sim as sim  # noqa: E402
-from gas_detect import alarm, detect, preview_frames, scores  # noqa: E402
+from gas_detect import alarm, detect, min_gas_free_s, preview_frames, scores  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_FIELDS = fields(sim.Config)
@@ -322,15 +322,6 @@ def load_uploaded(file) -> dict | None:
         st.error("El .npz debe contener al menos `u8` y `meta` (lo escribe ogi_sim.py).")
         return None
     return seq
-
-
-def min_gas_free_s(fps: float, window_s: float) -> float:
-    """Menor periodo sin gas (s) que admite detect(): usa 60 % para el fondo, el resto para medir el ruido."""
-    n_t = max(1, int(round(window_s * fps)))
-    n = 1
-    while n - max(3, int(0.6 * n)) - n_t < 2:
-        n += 1
-    return n / fps
 
 
 def tab_detector():

@@ -154,6 +154,15 @@ def detect(frames: np.ndarray, fps: float, gas_free_s: float = 1.0, sigma_px: fl
                 n_free=n_free, background=background, valid=valid)
 
 
+def min_gas_free_s(fps: float, window_s: float = 0.2) -> float:
+    """Shortest gas-free period (s) that `detect` accepts: 60 % trains the background, the rest measures the noise."""
+    n_t = max(1, int(round(window_s * fps)))
+    n = 1
+    while n - max(3, int(0.6 * n)) - n_t < 2:
+        n += 1
+    return n / fps
+
+
 def alarm(mask: np.ndarray, persist: int = 3) -> np.ndarray:
     """Frame-level alarm: gas present in `persist` consecutive frames."""
     present = mask.reshape(mask.shape[0], -1).any(1)

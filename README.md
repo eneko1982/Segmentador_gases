@@ -12,7 +12,8 @@ Simulador de secuencias LWIR de fugas de gas (cámara fija, tubo de venteo) y de
 | `configs/` | Presets en JSON (escenas del benchmark, vídeo largo turbulento, fuga intermitente). |
 | `docs/` | `parametros.md` (referencia de parámetros), `hoja_de_ruta.md` (estado de los pasos), `registro.md` (cambios y decisiones) y `figures/`. |
 | `app.py` | Interfaz en Streamlit. |
-| `notebooks/colab.ipynb` | Cuaderno para Google Colab (simular, detectar, comparar). |
+| `notebooks/colab.ipynb` | Cuaderno para Google Colab (simular, detectar, comparar, interfaz con deslizadores). |
+| `notebook_ui.py` | Interfaz con deslizadores para cuadernos (sin servidor web). |
 | `.devcontainer/` | Configuración de GitHub Codespaces. |
 | `tests/` | Tests del simulador y de la interfaz (`pip install pytest`). |
 | `docs/figures/` | Figuras de escenas y del detector. |

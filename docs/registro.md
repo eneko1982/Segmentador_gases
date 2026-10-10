@@ -2,10 +2,18 @@
 
 Entradas de la más reciente a la más antigua.
 
+## Interfaz dentro del cuaderno (sin túnel)
+
+- Problema: el cortafuegos de la empresa del usuario bloqueó el túnel `loca.lt` (categoría «Custom Encrypted Content»). No se intenta evitar el bloqueo.
+- `notebook_ui.py`: interfaz con `ipywidgets` (preset, gas, caudal, 7 deslizadores, resolución completa opcional, botón «Simular y detectar») que muestra métricas y una figura de 4 paneles. Sin servidor web.
+- `notebooks/colab.ipynb`: la celda 6 usa esa interfaz; se elimina la del túnel.
+- `gas_detect.min_gas_free_s` compartida por la interfaz web y la del cuaderno.
+- Comprobado: el cuaderno completo se ejecuta sin errores en un núcleo de Jupyter, y `tests/test_notebook_ui.py` (4 pruebas). No probado en Colab mismo.
+
 ## Abrir el proyecto sin instalar nada
 
 - `.devcontainer/devcontainer.json`: GitHub Codespaces instala las dependencias y arranca la interfaz.
-- `notebooks/colab.ipynb`: cuaderno de Colab con instalación, simulación, detector y comparación de umbrales (las celdas 1 a 5 se comprobaron en local; la celda 6, interfaz con túnel, no se pudo probar en Colab y puede fallar).
+- `notebooks/colab.ipynb`: cuaderno de Colab con instalación, simulación, detector y comparación de umbrales (la celda del túnel de la primera versión se sustituyó; ver la entrada anterior).
 - `ogi_sim.half_resolution` sustituye al código equivalente que había en `app.py`.
 - `make_figure.py` ya no fija el backend de matplotlib al importarse (impedía mostrar figuras en un cuaderno).
 - No probado: Codespaces y Colab desde fuera de este entorno; las instrucciones siguen la configuración estándar de ambos.
