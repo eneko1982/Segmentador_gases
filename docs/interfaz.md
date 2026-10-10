@@ -38,11 +38,35 @@ Se abre en el navegador (por defecto, http://localhost:8501).
 - La secuencia simulada vive en la memoria de la sesión del navegador: al recargar la página se pierde (descárgala si quieres conservarla).
 - Con resolución completa, una secuencia de 5 s ocupa unos 140 MB en memoria; las muy largas necesitan la escritura por trozos (paso A3).
 
-## Publicarla en la web (opcional, no hecho)
+## Abrirla sin instalar nada
 
-Hay dos caminos habituales:
+El repositorio es público y su rama por defecto es `claude/loving-allen-jv3c71`. Hay tres vías, de la más cómoda a la menos.
 
-1. **Streamlit Community Cloud**: conecta tu cuenta de GitHub, elige el repositorio, la rama y `app.py`. Es gratuito, pero los recursos son limitados (poca memoria y CPU), así que usa la vista previa rápida y secuencias cortas. El repositorio debe poder leerlo ese servicio.
-2. **Un servidor propio** (por ejemplo una máquina de la empresa o de la universidad): `streamlit run app.py --server.port 8501 --server.address 0.0.0.0`. Sin protección, cualquiera con acceso a la red podría abrirla; pónla detrás de una contraseña o una VPN.
+### 1. GitHub Codespaces (recomendada: la interfaz completa, desde el navegador)
 
-La interfaz no guarda ni envía datos fuera de la sesión.
+Abre https://codespaces.new/eneko1982/Segmentador_gases?quickstart=1 o, en la página del repositorio, **Code → Codespaces → Create codespace**. Necesitas una cuenta de GitHub.
+
+- Se crea una máquina en la nube con Python, instala las dependencias (`.devcontainer/devcontainer.json`) y arranca la interfaz sola. Tarda unos minutos la primera vez.
+- Si no se abre la vista previa, ve a la pestaña **Ports**, busca el puerto 8501 y pulsa el icono del globo (*Open in Browser*).
+- Las cuentas gratuitas tienen una cuota mensual de horas (consúltala en tu configuración de GitHub). Detén o borra el codespace cuando termines, para no gastarla.
+- Es una máquina completa: se pueden relanzar el benchmark y los tests.
+
+### 2. Google Colab (simular, detectar y ver las figuras; la interfaz es opcional)
+
+Cuaderno: `notebooks/colab.ipynb`. Para abrirlo:
+
+- Entra en https://colab.research.google.com → **Archivo → Abrir cuaderno → pestaña GitHub**, escribe `eneko1982/Segmentador_gases`, elige la rama `claude/loving-allen-jv3c71` y el cuaderno `notebooks/colab.ipynb`. (El enlace directo `colab.research.google.com/github/...` puede fallar con ramas que llevan `/` en el nombre; con una rama `main` sí funciona.)
+- Ejecuta las celdas en orden. Las celdas 1 a 5 (instalar, simular, ver, detectar, comparar umbrales) funcionan en Colab; cambias los parámetros editando un diccionario.
+- La celda 6 intenta lanzar la interfaz web con un túnel (`localtunnel`). **No está garantizada**: Colab puede bloquearlo o cambiarlo. Para la interfaz usa Codespaces.
+
+### 3. Streamlit Community Cloud (una dirección web fija que compartes con otras personas)
+
+1. Entra en https://share.streamlit.io con tu cuenta de GitHub.
+2. **Create app → Deploy a public app from GitHub**.
+3. Repositorio `eneko1982/Segmentador_gases`, rama `claude/loving-allen-jv3c71`, archivo principal `app.py`. Despliega.
+
+Es gratuito, pero los recursos son limitados (poca memoria y CPU): usa la vista previa rápida y secuencias cortas, y no relances el benchmark. Cualquiera con el enlace podrá usar la aplicación; no guarda nada fuera de la sesión.
+
+## Servidor propio
+
+`streamlit run app.py --server.port 8501 --server.address 0.0.0.0`. Sin protección, cualquiera con acceso a la red podría abrirla: ponla detrás de una contraseña o una VPN.

@@ -1,0 +1,13 @@
+{
+  "name": "Segmentador de gases",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "postCreateCommand": "pip install --user -r requirements.txt pytest",
+  "postAttachCommand": "streamlit run app.py --server.enableCORS false --server.enableXsrfProtection false",
+  "forwardPorts": [8501],
+  "portsAttributes": {
+    "8501": { "label": "Interfaz", "onAutoForward": "openPreview" }
+  },
+  "customizations": {
+    "vscode": { "extensions": ["ms-python.python"] }
+  }
+}

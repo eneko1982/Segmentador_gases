@@ -2,6 +2,14 @@
 
 Entradas de la más reciente a la más antigua.
 
+## Abrir el proyecto sin instalar nada
+
+- `.devcontainer/devcontainer.json`: GitHub Codespaces instala las dependencias y arranca la interfaz.
+- `notebooks/colab.ipynb`: cuaderno de Colab con instalación, simulación, detector y comparación de umbrales (las celdas 1 a 5 se comprobaron en local; la celda 6, interfaz con túnel, no se pudo probar en Colab y puede fallar).
+- `ogi_sim.half_resolution` sustituye al código equivalente que había en `app.py`.
+- `make_figure.py` ya no fija el backend de matplotlib al importarse (impedía mostrar figuras en un cuaderno).
+- No probado: Codespaces y Colab desde fuera de este entorno; las instrucciones siguen la configuración estándar de ambos.
+
 ## Interfaz (paso A7)
 
 - `app.py` (Streamlit) con cuatro pestañas: Simulador, Detector, Benchmark y Comparar umbrales. Guía y capturas en [`interfaz.md`](interfaz.md).

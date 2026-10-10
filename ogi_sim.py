@@ -242,6 +242,16 @@ def validate(cfg: Config) -> Config:
     return cfg
 
 
+def half_resolution(cfg: Config) -> Config:
+    """Same field of view with half the pixels (about 4 times faster): quick previews."""
+    if cfg.width < 128 or cfg.height < 96:
+        return cfg
+    data = asdict(cfg)
+    data.update(width=cfg.width // 2, height=cfg.height // 2, m_per_px=cfg.m_per_px * 2,
+                psf_sigma_px=cfg.psf_sigma_px / 2, pipe_half_px=max(1, round(cfg.pipe_half_px / 2)))
+    return Config(**data)
+
+
 def apply_overrides(cfg: Config, overrides: dict) -> Config:
     """Return a validated copy of `cfg` with `overrides` ({name: value}) applied."""
     new = {name: _coerce(name, value) for name, value in overrides.items() if not name.startswith("_")}

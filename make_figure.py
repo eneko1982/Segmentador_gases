@@ -15,8 +15,6 @@ from __future__ import annotations
 import argparse
 import json
 
-import matplotlib
-matplotlib.use("Agg")  # no window: the figure is returned or saved
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import ndimage as ndi

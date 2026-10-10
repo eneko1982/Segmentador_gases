@@ -12,6 +12,8 @@ Simulador de secuencias LWIR de fugas de gas (cámara fija, tubo de venteo) y de
 | `configs/` | Presets en JSON (escenas del benchmark, vídeo largo turbulento, fuga intermitente). |
 | `docs/` | `parametros.md` (referencia de parámetros), `hoja_de_ruta.md` (estado de los pasos), `registro.md` (cambios y decisiones) y `figures/`. |
 | `app.py` | Interfaz en Streamlit. |
+| `notebooks/colab.ipynb` | Cuaderno para Google Colab (simular, detectar, comparar). |
+| `.devcontainer/` | Configuración de GitHub Codespaces. |
 | `tests/` | Tests del simulador y de la interfaz (`pip install pytest`). |
 | `docs/figures/` | Figuras de escenas y del detector. |
 
@@ -32,6 +34,8 @@ streamlit run app.py
 ```
 
 Cuatro pestañas (Simulador, Detector, Benchmark, Comparar umbrales). Guía en [`docs/interfaz.md`](docs/interfaz.md).
+
+Sin instalar nada: [abrir en GitHub Codespaces](https://codespaces.new/eneko1982/Segmentador_gases?quickstart=1) (interfaz completa) o usar el cuaderno `notebooks/colab.ipynb` en Google Colab (pasos en `docs/interfaz.md`).
 
 ## Parametrizar el simulador
 

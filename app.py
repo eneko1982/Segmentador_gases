@@ -96,12 +96,7 @@ def command_line(cfg: sim.Config) -> str:
 
 def preview_config(cfg: sim.Config) -> sim.Config:
     """Mismo campo de visión con la mitad de píxeles (≈4 veces más rápido)."""
-    if cfg.width < 128 or cfg.height < 96:
-        return cfg
-    data = {f.name: getattr(cfg, f.name) for f in CONFIG_FIELDS}
-    data.update(width=cfg.width // 2, height=cfg.height // 2, m_per_px=cfg.m_per_px * 2,
-                psf_sigma_px=cfg.psf_sigma_px / 2, pipe_half_px=max(1, round(cfg.pipe_half_px / 2)))
-    return sim.Config(**data)
+    return sim.half_resolution(cfg)
 
 
 # ---------------------------------------------------------------------------
