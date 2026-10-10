@@ -11,7 +11,8 @@ Simulador de secuencias LWIR de fugas de gas (cámara fija, tubo de venteo) y de
 | `results/results.csv` | Resultados del benchmark (2 semillas). |
 | `configs/` | Presets en JSON (escenas del benchmark, vídeo largo turbulento, fuga intermitente). |
 | `docs/` | `parametros.md` (referencia de parámetros), `hoja_de_ruta.md` (estado de los pasos), `registro.md` (cambios y decisiones) y `figures/`. |
-| `app.py` | Interfaz en Streamlit. |
+| `app.py` | Panel de control en Streamlit. |
+| `analysis.py`, `viewer.py`, `exports.py` | Máscaras y métricas, reproductor con máscaras y exportación del panel. |
 | `notebooks/colab.ipynb` | Cuaderno para Google Colab (simular, detectar, comparar, interfaz con deslizadores). |
 | `notebook_ui.py` | Interfaz con deslizadores para cuadernos (sin servidor web). |
 | `.devcontainer/` | Configuración de GitHub Codespaces. |
@@ -34,7 +35,7 @@ python -m pytest tests
 streamlit run app.py
 ```
 
-Cuatro pestañas (Simulador, Detector, Benchmark, Comparar umbrales). Guía en [`docs/interfaz.md`](docs/interfaz.md).
+Panel de control con ajustes del vídeo, de la simulación y del detector; reproductor con las máscaras real y detectada superpuestas; resultados y exportación (CSV, JSON, imágenes, GIF, informe HTML y ZIP). Guía en [`docs/interfaz.md`](docs/interfaz.md).
 
 Sin instalar nada: [abrir en GitHub Codespaces](https://codespaces.new/eneko1982/Segmentador_gases?quickstart=1) (interfaz completa) o usar el cuaderno `notebooks/colab.ipynb` en Google Colab (pasos en `docs/interfaz.md`).
 

@@ -1,6 +1,6 @@
 # Interfaz (`app.py`)
 
-Aplicación en Streamlit para usar el simulador y el detector sin la línea de comandos.
+Panel de control en Streamlit para ajustar el vídeo, la simulación y los cálculos, ver el vídeo con las máscaras superpuestas y exportar resultados e imágenes, sin la línea de comandos.
 
 ## Cómo abrirla en tu ordenador
 
@@ -18,25 +18,56 @@ streamlit run app.py
 
 Se abre en el navegador (por defecto, http://localhost:8501).
 
-## Pestañas
+## Cómo está organizada
+
+**Barra lateral (los ajustes)** — tres bloques, más un preset y los botones de ejecución:
+
+| Bloque | Qué ajusta |
+|---|---|
+| **1 · Vídeo y cámara** | Escena (placa caliente / cielo frío), temperatura del fondo, ruido NETD, duración, resolución (rápida ½ o completa). Con «Más parámetros» se abren los demás: fps, tamaño del píxel, ruido de patrón fijo y de columna, deriva, desenfoque, ventana de 8 bit, geometría de la placa, etc. |
+| **2 · Simulación del gas** | Gas, caudal, inicio de la fuga, viento, ráfagas y turbulencia. Con «Más parámetros»: cierre de la fuga, velocidad y ángulo de salida, flotabilidad, crecimiento de la pluma, resolución de la pluma, modos de turbulencia… |
+| **3 · Cálculos del detector** | Entrada (u8 / temp), periodo sin gas (automático o manual), umbrales `z_low` y `z_high`, suavizado espacial, promedio temporal y área mínima. |
+
+Botones: **▶ Simular y calcular** (simula y, si está marcado, calcula el detector), **Recalcular detector** (cuando solo cambias el bloque 3, sin volver a simular), **Cargar una secuencia .npz**, **Restablecer parámetros** y el comando equivalente para repetirlo desde la terminal.
+
+**Pestañas**
 
 | Pestaña | Qué hace |
 |---|---|
-| **Simulador** | Preset + 10 controles principales (escena, gas, caudal, viento, ráfagas, turbulencia, temperatura del fondo, NETD, duración, inicio de la fuga) + los 80 parámetros agrupados. Vista previa rápida (½ resolución, ~4 veces más rápida) o completa. Muestra el vídeo con el contorno de la verdad, el mapa del cambio causado por el gas y los píxeles con gas en el tiempo. Descarga `.npz`, `.json` y `.gif`. Enseña el comando equivalente. |
-| **Detector** | Corre `gas_detect.py` sobre la última secuencia simulada o sobre un `.npz` subido. Parámetros: entrada (u8/temp), periodo sin gas, `z_low`, `z_high`, suavizado, promedio temporal, área mínima. Muestra ruido tras el filtrado, retardo, falsa alarma, % de píxeles sin gas marcados y una tabla de IoU, recall y precisión. Las líneas naranja (detector) y azul (verdad) se dibujan con el mismo umbral, a elegir. |
-| **Benchmark** | Gráfica y tabla de `results/results.csv` por caudal y escena, con la métrica y la entrada a elegir. Botón para relanzar el barrido (≈2 min con 4 procesos). |
-| **Comparar umbrales** | La figura de detector frente a verdad con el mismo umbral, para la escena y los caudales que elijas. |
+| **🎬 Vídeo** | Reproductor con una, dos o tres vistas sincronizadas: *Cámara* (8 bit), *Estimación del detector* y *Cambio real* (mapas en mK). Sobre cada vista se superponen la **máscara real** (azul) y la **máscara detectada** (naranja), que se activan y desactivan con casillas, sin recalcular. Estilos: contorno, relleno y **acierto/error** (verde = acierto, naranja = falso positivo, azul = falso negativo). También: opacidad, grosor, tamaño, velocidad, bucle, fotograma a fotograma (←/→) y espacio para reproducir. **Qué es «gas real» y qué es «detectado»** se elige encima del vídeo: la verdad del simulador, el umbral propio del detector, 1×/2×/3× NETD o un valor en mK; y la máscara del detector o la estimación con un umbral. El botón **Descargar fotograma (PNG)** guarda las vistas con las máscaras activas. |
+| **📊 Resultados** | Ruido, umbral propio, retardo, falsa alarma, IoU/recall/precisión (para las máscaras elegidas y la ventana de tiempo que elijas), tabla a distintos umbrales, píxeles reales y detectados en el tiempo, IoU por fotograma, evidencia del detector (|z| máximo) y una galería de fotogramas con las máscaras. |
+| **📦 Exportar** | Estilo de las imágenes, vistas y fotogramas a elegir, y qué incluir: informe HTML, GIF con las máscaras, todos los fotogramas en PNG, y los datos (`.npz`) de la detección y de la secuencia. Genera por separado `resumen.json`, `serie_temporal.csv`, `series.png`, `galeria.png` y un `paquete.zip` con todo. |
+| **📈 Benchmark** | Resultados de `results/results.csv` por caudal y escena; botón para relanzar el barrido. |
+| **⚖️ Comparar umbrales** | La figura de detector frente a verdad con el mismo umbral, para la escena y los caudales que elijas. |
 
 ## Capturas
 
-![Simulador](figures/app_simulador.png)
-![Detector](figures/app_detector.png)
+![Vídeo con tres vistas](figures/app_video.png)
+![Modo acierto/error](figures/app_video_error.png)
+![Resultados](figures/app_resultados.png)
+![Exportar](figures/app_exportar.png)
+
+## Contenido del paquete exportado
+
+```
+resumen.json                 métricas, parámetros del detector y del simulador
+serie_temporal.csv           por fotograma: píxeles detectados/reales, acierto, FP, FN, IoU, recall, precisión, |z| máx, alarma
+informe.html                 informe autónomo con tablas e imágenes
+figuras/series.png           píxeles, IoU y |z| en el tiempo
+figuras/galeria.png          fotogramas elegidos con las máscaras
+figuras/fotogramas/*.png     un PNG por vista y fotograma elegido
+video/superposicion.gif      vídeo con las máscaras
+fotogramas_png/*.png         (opcional) todos los fotogramas
+datos/deteccion.npz          máscara detectada, máscara real y estimación en mK
+datos/secuencia.npz          (opcional) la secuencia simulada completa
+```
 
 ## Limitaciones conocidas
 
 - Solo carga secuencias `.npz` de `ogi_sim.py`. Los vídeos reales (`.mp4`, cámara en directo) llegarán con el programa de captura (paso 6 de la hoja de ruta).
-- La secuencia simulada vive en la memoria de la sesión del navegador: al recargar la página se pierde (descárgala si quieres conservarla).
-- Con resolución completa, una secuencia de 5 s ocupa unos 140 MB en memoria; las muy largas necesitan la escritura por trozos (paso A3).
+- La secuencia simulada vive en la memoria de la sesión del navegador: al recargar la página se pierde (exporta el `.npz` o el paquete si quieres conservarla).
+- El reproductor carga todos los fotogramas en el navegador: con vídeos largos o a resolución completa usa «Fotogramas mostrados: 1 de cada N» y pocas vistas.
+- «Superponer» las máscaras es una visualización: no se pueden dibujar ni editar máscaras a mano.
 
 ## Abrirla sin instalar nada
 
@@ -57,7 +88,7 @@ Cuaderno: `notebooks/colab.ipynb`. Para abrirlo:
 
 - Entra en https://colab.research.google.com → **Archivo → Abrir cuaderno → pestaña GitHub**, escribe `eneko1982/Segmentador_gases`, elige la rama `claude/loving-allen-jv3c71` y el cuaderno `notebooks/colab.ipynb`. (El enlace directo `colab.research.google.com/github/...` puede fallar con ramas que llevan `/` en el nombre; con una rama `main` sí funciona.)
 - Ejecuta las celdas en orden. Las celdas 1 a 5 instalan el proyecto, simulan una fuga, muestran la secuencia, ejecutan el detector y comparan los umbrales; los parámetros se cambian editando un diccionario.
-- La celda 6 es una **interfaz con deslizadores dentro del propio cuaderno** (preset, gas, caudal, viento, ráfagas, turbulencia, duración, NETD…). No necesita servidor web ni túnel. Es la versión reducida de la interfaz: simula y detecta; no incluye las pestañas Benchmark ni Comparar umbrales (esta última está en la celda 5).
+- La celda 6 es una **interfaz con deslizadores dentro del propio cuaderno** (preset, gas, caudal, viento, ráfagas, turbulencia, duración, NETD…). No necesita servidor web ni túnel. Es la versión reducida de la interfaz: simula y detecta; no incluye el reproductor con máscaras superpuestas ni la exportación: para eso usa el panel completo (`streamlit run app.py`, Codespaces o Streamlit Cloud).
 - Se comprobó ejecutando el cuaderno completo en un núcleo de Jupyter local. En Colab mismo no se ha podido probar.
 
 > **Redes corporativas.** Los servicios de túnel (`localtunnel`, `ngrok`…) suelen estar bloqueados por los cortafuegos de empresa: por eso el cuaderno ya no los usa. Si tu red también bloquea Codespaces o Streamlit Cloud, las opciones son pedir una revisión a Ciberseguridad (el propio aviso de bloqueo explica cómo) o ejecutar la interfaz en local (`streamlit run app.py`), que no sale a Internet.

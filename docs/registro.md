@@ -2,6 +2,19 @@
 
 Entradas de la más reciente a la más antigua.
 
+## Panel de control completo (sustituye a la interfaz de pestañas Simulador/Detector)
+
+Motivo: la primera interfaz era un formulario por pestañas; se pidió un panel con ajustes del vídeo, de la simulación y de los cálculos, vídeo visible con las máscaras real y detectada superpuestas, y exportación de resultados e imágenes.
+
+- **Barra lateral** con tres bloques de ajustes: vídeo y cámara, simulación del gas, cálculos del detector (los 80 parámetros accesibles con «Más parámetros»).
+- **Reproductor propio** (HTML/JS, `viewer.py`): 1–3 vistas sincronizadas (cámara, estimación del detector, cambio real); máscaras real y detectada activables sin recalcular; contorno, relleno y acierto/error (TP/FP/FN); opacidad, grosor, velocidad, bucle, teclado; descarga del fotograma en PNG.
+- **Máscaras configurables** (`analysis.py`): real = simulador, umbral propio del detector, 1×/2×/3× NETD o mK; detectada = máscara del detector o estimación con umbral. Métricas por fotograma y por ventana de tiempo.
+- **Resultados**: métricas, tabla por umbrales, series temporales, evidencia |z|, galería.
+- **Exportación** (`exports.py`): CSV, JSON, figuras, GIF, informe HTML, `.npz` y ZIP.
+- Tests: `tests/test_dashboard.py` (máscaras, métricas, composición de imágenes, sintaxis del JavaScript con `node`, contenido del ZIP) y `tests/test_app.py` actualizado. Probado además en un navegador real (reproducir, pausar, activar/desactivar máscaras, cambiar de estilo, descargar el fotograma, exportar).
+- Interpretación: «sobreescribir la máscara» se ha entendido como **superponer** máscaras sobre el vídeo; no hay edición manual de máscaras.
+- La interfaz del cuaderno de Colab (`notebook_ui.py`) sigue siendo la versión reducida.
+
 ## Interfaz dentro del cuaderno (sin túnel)
 
 - Problema: el cortafuegos de la empresa del usuario bloqueó el túnel `loca.lt` (categoría «Custom Encrypted Content»). No se intenta evitar el bloqueo.
